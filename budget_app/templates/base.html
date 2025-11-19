@@ -100,10 +100,10 @@ Flask uses Jinja2 templating, and this file defines the page container.
 
         .app-card {
             background-color: var(--color-card-bg);
-            color: #ffffff;
+            color: var(--color-text);   /* FIXED: uses theme text color */
             border-radius: 0.5rem;
-            padding: 0.5rem 1rem;
-            font-weight: 600;
+            padding: 1.25rem 1.5rem;    /* Better spacing */
+            font-weight: 500;       /* Medium weight for readability */
             transition: background-color 0.15s ease, transform 0.1s ease;
         }
 
