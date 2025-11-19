@@ -1,17 +1,61 @@
+{#
+======================================================================================
+month_view.html — MONTHLY INCOME SUMMARY
+======================================================================================
+
+This page shows the breakdown of ALL weekly income entries for the selected month.
+
+It is rendered by this route in app.py:
+
+    @app.route("/income/<int:year>/<int:month>")
+
+Variables passed into this template from app.py:
+    • year          — the numeric year (e.g., 2025)
+    • month         — the numeric month (e.g., 11)
+    • entries       — a list of IncomeWeek objects from the database
+    • total_gross   — sum of gross incomes for the month
+    • total_net     — sum of net incomes for the month
+    • total_tax     — gross - net for the month
+
+If no entries exist, we show a friendly message.
+
+======================================================================================
+#}
+
 {% extends "base.html" %}
 
+
 {% block content %}
+
+<!-- PAGE HEADER -->
 <h2 class="text-2xl font-bold mb-4">
   Income Summary for {{ month }}/{{ year }}
 </h2>
 
-<!--
-  'entries' is a list of IncomeWeek database objects.
-  If no entries exist, the page shows a helpful message.
--->
+
+{# ======================================================================================
+   CONDITIONAL: IF THERE ARE INCOME ENTRIES FOR THIS MONTH
+   ======================================================================================
+   entries is a Python list. If it is non-empty, we render a table.
+
+   {% if entries %}  → True if list has at least one element
+   {% else %}        → Runs when no weeks have been entered
+#}
 {% if entries %}
 
-  <!-- TABLE OF WEEKLY INCOME -->
+
+
+  {# ======================================================================================
+     WEEKLY INCOME TABLE
+     ======================================================================================
+     Tailwind styling:
+       • min-w-full → ensures table stretches full width
+       • bg-white + shadow + rounded → clean card appearance
+       • th/td classes set spacing and text style
+
+     The table contains:
+       Week | Hourly | Hours | Gross | Net | Tax Paid
+  #}
   <table class="min-w-full bg-white shadow rounded-lg overflow-hidden">
     <thead class="bg-gray-100">
       <tr>
@@ -25,6 +69,22 @@
     </thead>
 
     <tbody>
+
+      {# ==================================================================================
+         LOOP OVER EACH IncomeWeek ENTRY
+         ==================================================================================
+         'e' is a single IncomeWeek object.
+
+         We format monetary values to two decimals using:
+             "{{ '%.2f'|format(value) }}"
+
+         Available fields from the IncomeWeek model:
+             e.week_index
+             e.hourly_pay
+             e.hours
+             e.gross
+             e.net
+      #}
       {% for e in entries %}
       <tr class="border-t">
         <td class="px-4 py-2 text-sm">{{ e.week_index }}</td>
@@ -32,15 +92,28 @@
         <td class="px-4 py-2 text-sm">{{ "%.2f"|format(e.hours) }}</td>
         <td class="px-4 py-2 text-sm">{{ "%.2f"|format(e.gross) }}</td>
         <td class="px-4 py-2 text-sm">{{ "%.2f"|format(e.net) }}</td>
+
+        <!-- Tax Paid = gross - net -->
         <td class="px-4 py-2 text-sm">{{ "%.2f"|format(e.gross - e.net) }}</td>
       </tr>
       {% endfor %}
+
     </tbody>
   </table>
 
-  <!-- MONTH TOTALS -->
+
+
+  {# ======================================================================================
+     MONTHLY TOTALS SECTION
+     ======================================================================================
+     Values are calculated in Python (app.py), NOT in the HTML template.
+     This keeps templates clean and prevents mixing business logic with display logic.
+
+     total_gross, total_net, total_tax are already precomputed numbers.
+  #}
   <div class="mt-6 bg-white shadow rounded-lg p-4">
     <h3 class="text-xl font-semibold mb-2">Monthly Totals</h3>
+
     <ul class="space-y-1 text-sm">
       <li><strong>Total Gross:</strong> {{ "%.2f"|format(total_gross) }}</li>
       <li><strong>Total Net:</strong> {{ "%.2f"|format(total_net) }}</li>
@@ -48,20 +121,42 @@
     </ul>
   </div>
 
+
+
 {% else %}
 
-  <!-- MESSAGE IF NO WEEKS SAVED -->
+  {# ======================================================================================
+     NO ENTRIES YET
+     ======================================================================================
+     This runs when the month has no IncomeWeek entries.
+
+     It keeps the UI helpful and avoids blank pages.
+  #}
   <p class="text-gray-600">
     No income entries recorded for this month yet.
   </p>
 
 {% endif %}
 
+
+
+{# ========================================================================================
+   BUTTON: ADD ANOTHER WEEK
+   ========================================================================================
+   A simple call to action that redirects back to the income form.
+
+   Tailwind:
+     bg-blue-600      → primary button color
+     hover:bg-blue-700 → darker on hover
+     px-4 py-2        → padding
+     rounded          → rounded corners
+#}
 <a
   href="{{ url_for('income_form') }}"
   class="inline-block mt-6 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2 rounded"
 >
   Add another week
 </a>
+
 
 {% endblock %}

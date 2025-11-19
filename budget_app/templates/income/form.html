@@ -1,33 +1,71 @@
+{#
+======================================================================================
+form.html — INCOME ENTRY PAGE
+======================================================================================
+
+This template is responsible for:
+
+✔ Displaying a form where the user inputs:
+    - year
+    - month
+    - week number
+    - hourly pay
+    - hours worked
+    - estimated tax %
+
+✔ Sending the submitted values to the Flask backend for processing.
+
+✔ Pre-filling year/month defaults using data passed from app.py.
+
+This page is rendered by the route:
+    /income          (income_form in app.py)
+
+When the form is submitted (POST request), app.py:
+    1. Calculates gross/net pay
+    2. Saves a new IncomeWeek row
+    3. Redirects the user to /income/<year>/<month>
+
+======================================================================================
+#}
+
+{# 
+    base.html defines the layout structure (header, nav, etc.)
+    We place this page's content inside its {% block content %}.
+#}
 {% extends "base.html" %}
 
 {% block content %}
+
+<!-- PAGE TITLE -->
 <h2 class="text-2xl font-bold mb-4">Income Calculation</h2>
 
+<!-- INTRO PARAGRAPH (just to guide the user) -->
 <p class="mb-4 text-gray-700">
   Enter your weekly income details below. We will calculate your gross and net pay
-  for that week and save it under the selected month and year.
+  for this week and store it under the selected year and month.
 </p>
 
-<!--
-  HTML FORM:
 
-  method="post"
-      Means form data will be sent to Flask using POST request.
-
-  No action="" attribute means:
-      Submit POST request back to THIS SAME URL (/income),
-      which is handled by your income_form() route.
--->
+{# ----------------------------------------------------------------------------------
+   THE FORM
+   ----------------------------------------------------------------------------------
+   - method="post" means a POST request is sent to the same URL (/income).
+   - Flask receives data through request.form.
+   - `class="bg-white shadow ..."` uses Tailwind utility classes.
+#}
 <form method="post" class="bg-white shadow rounded-lg p-6 space-y-4">
 
-  <!-- YEAR INPUT -->
+  {# ==========================================================================
+     YEAR INPUT
+     ==========================================================================
+     • The name="year" MUST match what app.py expects:
+           year = int(request.form["year"])
+     • The value is prefilled from app.py using variables:
+           current_year = today.year
+  #}
   <div>
-    <label class="block text-sm font-medium mb-1" for="year">Year</label>
+    <label for="year" class="block text-sm font-medium mb-1">Year</label>
 
-    <!--
-      'name="year"' is CRITICAL — Flask expects request.form["year"]
-      value="{{ current_year }}" pre-fills the form with today's year
-    -->
     <input
       id="year"
       name="year"
@@ -38,9 +76,16 @@
     >
   </div>
 
-  <!-- MONTH INPUT -->
+
+  {# ==========================================================================
+     MONTH INPUT
+     ==========================================================================
+     • Months must be 1–12.
+     • Pre-filled using current_month from app.py.
+  #}
   <div>
-    <label class="block text-sm font-medium mb-1" for="month">Month (1-12)</label>
+    <label for="month" class="block text-sm font-medium mb-1">Month (1–12)</label>
+
     <input
       id="month"
       name="month"
@@ -53,9 +98,19 @@
     >
   </div>
 
-  <!-- WEEK INDEX -->
+
+  {# ==========================================================================
+     WEEK INDEX
+     ==========================================================================
+     • This is NOT tied to actual calendar dates.
+     • It’s the user’s own categorization (Week 1, Week 2, etc.).
+     • Stored under IncomeWeek.week_index.
+  #}
   <div>
-    <label class="block text-sm font-medium mb-1" for="week_index">Week Number (1–5)</label>
+    <label for="week_index" class="block text-sm font-medium mb-1">
+      Week Number (1–5)
+    </label>
+
     <input
       id="week_index"
       name="week_index"
@@ -66,24 +121,27 @@
       class="w-full border rounded px-3 py-2"
       required
     >
+
     <p class="text-xs text-gray-500 mt-1">
-      This is your label for "Week 1", "Week 2", etc.
-      It does not need to match real calendar weeks.
+      This is simply your label for “Week 1”, “Week 2”, etc.
+      It does NOT need to match actual calendar week numbers.
     </p>
   </div>
 
-  <!-- HOURLY PAY -->
+
+  {# ==========================================================================
+     HOURLY PAY INPUT
+     ==========================================================================
+     • The user enters a decimal number (example: $13.25/hr).
+     • step="0.01" allows cent-level precision.
+     • name="hourly_pay" matches the backend:
+           hourly = float(request.form["hourly_pay"])
+  #}
   <div>
-    <label class="block text-sm font-medium mb-1" for="hourly_pay">Hourly Pay ($)</label>
+    <label for="hourly_pay" class="block text-sm font-medium mb-1">
+      Hourly Pay ($)
+    </label>
 
-    <!--
-      IMPORTANT:
-      The broken code you had previously looked like:
-         11 name="hourly_pay" ...
-      meaning a "<input>" tag was missing its opening "<"
-
-      This is the CORRECT clean version.
-    -->
     <input
       id="hourly_pay"
       name="hourly_pay"
@@ -94,9 +152,20 @@
     >
   </div>
 
-  <!-- HOURS WORKED -->
+
+  {# ==========================================================================
+     HOURS WORKED
+     ==========================================================================
+     • Again, step="0.01" allows:
+         - fractional hours (e.g., 37.5)
+         - decimal precision
+     • Tied to request.form["hours_worked"]
+  #}
   <div>
-    <label class="block text-sm font-medium mb-1" for="hours_worked">Hours Worked (this week)</label>
+    <label for="hours_worked" class="block text-sm font-medium mb-1">
+      Hours Worked (this week)
+    </label>
+
     <input
       id="hours_worked"
       name="hours_worked"
@@ -107,9 +176,21 @@
     >
   </div>
 
-  <!-- TAX PERCENTAGE -->
+
+  {# ==========================================================================
+     TAX PERCENTAGE
+     ==========================================================================
+     • The user enters a percentage (NOT a decimal).
+     • Example: 10 means 10%.
+     • Backend converts it using:
+           net = gross * (1 - tax_percent / 100.0)
+     • Default value is 10.0 (just a normal example tax rate).
+  #}
   <div>
-    <label class="block text-sm font-medium mb-1" for="tax_percent">Tax Percentage (%)</label>
+    <label for="tax_percent" class="block text-sm font-medium mb-1">
+      Tax Percentage (%)
+    </label>
+
     <input
       id="tax_percent"
       name="tax_percent"
@@ -119,12 +200,21 @@
       class="w-full border rounded px-3 py-2"
       required
     >
+
     <p class="text-xs text-gray-500 mt-1">
-      This is an estimate. Adjust it to match how much your real checks lose to taxes.
+      This is an estimate. Adjust it to match how much your real paycheck
+      loses to taxes. You will later be able to compare your gross vs. net 
+      to understand tax impact over time.
     </p>
   </div>
 
-  <!-- SUBMIT BUTTON -->
+
+  {# ==========================================================================
+     SUBMIT BUTTON
+     ==========================================================================
+     • Clicking this submits the POST request to /income.
+     • Tailwind classes provide styling.
+  #}
   <div class="pt-4">
     <button
       type="submit"
@@ -133,8 +223,11 @@
       Save Week
     </button>
   </div>
+
 </form>
 
+
+<!-- FOOTNOTE BELOW FORM -->
 <p class="mt-4 text-gray-600">
   After saving, you will automatically be redirected to the monthly summary page.
 </p>

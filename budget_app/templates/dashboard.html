@@ -1,13 +1,88 @@
+{# 
+  dashboard.html
+
+  This template represents the "Home" or "Dashboard" page of your app.
+  It appears when the user visits the root URL:
+
+        http://127.0.0.1:5000/
+
+  This file uses Jinja templating syntax (the templating system Flask uses).
+#}
+
+{# 
+  EXTENDING base.html
+  -------------------
+  This tells Flask/Jinja:
+      "Use base.html as the master layout for this page."
+
+  base.html includes the:
+  - <html> structure
+  - <head> section
+  - navigation bar (your main menu)
+  - global Tailwind styling
+  - wrapper for content
+
+  Any page that extends base.html only needs to define the content 
+  that goes inside the `{% block content %}` section.
+#}
 {% extends "base.html" %}
 
+{# 
+  The "content" block:
+  --------------------
+  This block REPLACES the placeholder block inside base.html.
+
+  In base.html, you likely have something like:
+
+      {% block content %}{% endblock %}
+
+  Everything between {% block content %} and {% endblock %} here will appear
+  *inside* that area.
+
+  This keeps your layout consistent across pages (single-page layout).
+#}
 {% block content %}
+
+<!-- 
+  MAIN PAGE HEADING 
+  -----------------
+  Tailwind classes used:
+    text-3xl -> Makes the text very large
+    font-bold -> Makes it bold
+    mb-4 -> Adds margin bottom of size 4 for spacing
+-->
 <h1 class="text-3xl font-bold mb-4">Welcome to Your Budget App</h1>
 
+<!-- 
+  BASIC PAGE DESCRIPTION 
+  ----------------------
+  This lets the user know the app is running and gives guidance.
+  text-gray-700 -> Slightly gray text (less harsh than pure black)
+-->
 <p class="text-gray-700">
   Your app is running correctly! Use the navigation bar to go to the Income section.
 </p>
 
-<a href="/income" class="inline-block mt-4 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded">
+<!-- 
+  LINK TO INCOME CALCULATOR 
+  --------------------------
+  This <a> tag functions like a button.
+
+  Tailwind classes:
+    inline-block     -> Makes the element block-like but inline with text flow
+    mt-4             -> Top margin for spacing
+    bg-blue-600      -> Blue background (primary color)
+    hover:bg-blue-700 -> Darker blue on hover (interactive feedback)
+    text-white       -> White text color
+    px-4, py-2       -> Padding (horizontal/vertical)
+    rounded          -> Rounded corners
+
+  Clicking this will send the user to the route: /income
+-->
+<a 
+  href="/income" 
+  class="inline-block mt-4 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded"
+>
   Go to Income Calculator
 </a>
 

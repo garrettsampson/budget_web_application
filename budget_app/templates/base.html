@@ -1,15 +1,108 @@
+<!-- 
+===============================================================================
+base.html
+===============================================================================
+
+This file is the MASTER LAYOUT for your entire Flask application.
+
+Every other template (dashboard.html, form.html, summary pages, etc.)
+"extends" this base template.
+
+Why do this?
+
+Because:
+- It prevents repeating navigation bars everywhere
+- It keeps your page structure consistent
+- It lets you control the app’s visual design from one file
+- Every other page only has to fill in the { % block content % } section
+
+Flask uses Jinja2 templating, and this file defines the page container.
+===============================================================================
+-->
+
 <!DOCTYPE html>
 <html>
+
 <head>
+    <!-- 
+        <meta charset="UTF-8">
+        -----------------------------------------
+        Ensures your site can handle all normal characters
+        (letters, digits, symbols, emoji, etc.)
+    -->
     <meta charset="UTF-8">
+
+    <!-- 
+        <title>Budget App</title>
+        -----------------------------------------
+        This sets the title that appears on the browser tab.
+        Each child template can override this using:
+            {% block title %}My Page{% endblock %}
+        If you want dynamic titles later.
+    -->
     <title>Budget App</title>
+
+    <!-- 
+        Tailwind CSS (via CDN)
+        -----------------------------------------
+        This <script> tag loads TailwindCSS from a Content Delivery Network.
+        Tailwind is a utility-first CSS framework that gives you classes like:
+            bg-blue-600, text-center, mt-4, p-2, rounded-xl
+        The CDN version is perfect for development and small apps.
+
+        NOTE:
+        - This line ALONE is what gives your entire site styling.
+        - No installation needed.
+        - The moment you remove this line, all styling disappears.
+    -->
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
 
+
+<!-- 
+<body class="bg-gray-100 text-gray-800">
+-----------------------------------------
+This sets global styling for every page:
+
+bg-gray-100  = a soft gray background (easier on the eyes)
+text-gray-800 = nearly-black text
+
+These classes come from TailwindCSS.
+-->
 <body class="bg-gray-100 text-gray-800">
 
+
+    <!-- 
+    ===========================================================================
+    NAVIGATION BAR
+    ===========================================================================
+
+    This <nav> bar appears at the top of EVERY page because base.html is
+    extended by all other templates.
+
+    Tailwind classes used:
+        bg-white    -> white background
+        shadow      -> subtle drop shadow
+        mb-8        -> margin-bottom spacing (pushes page content downward)
+
+    Inside it we have a <div> that keeps the nav centered and nicely spaced.
+    ===========================================================================
+    -->
     <nav class="bg-white shadow mb-8">
         <div class="max-w-5xl mx-auto px-4 py-4 flex gap-6 text-lg font-semibold">
+
+            <!-- 
+                Navigation Links:
+                Each <a> tag goes to a route in app.py.
+                
+                hover:text-blue-500:
+                    Tailwind class that changes text color when hovered
+                    (interactive feedback).
+                
+                NOTE:
+                Some links (like savings, yearly, goals) do not yet have routes,
+                so clicking them will show a 404 until we build those pages.
+            -->
             <a href="/" class="hover:text-blue-500">Home</a>
             <a href="/income" class="hover:text-blue-500">Income</a>
             <a href="/savings" class="hover:text-blue-500">Savings</a>
@@ -18,9 +111,37 @@
         </div>
     </nav>
 
+
+
+    <!-- 
+    ===========================================================================
+    PAGE CONTENT AREA
+    ===========================================================================
+
+    This <div> determines where CHILD TEMPLATES will insert their content.
+
+    max-w-5xl = sets a comfortable maximum width (prevents full-screen stretching)
+    mx-auto   = centers the content horizontally
+    px-4      = adds left/right padding so text doesn’t touch screen edges
+
+    The Jinja block:
+        { (percent) block content (percent)}{(percent) endblock (percent)}
+    tells Flask:
+        "Any child template that 'extends base.html' will place its custom HTML here."
+
+    Example:
+        dashboard.html → puts its <h1> and <p> inside this container.
+        income/form.html → puts the form here.
+        income/month_view.html → puts the summary table here.
+
+    This structure creates a consistent professional layout.
+    ===========================================================================
+    -->
     <div class="max-w-5xl mx-auto px-4">
-        {% block content %}{% endblock %}
+        {% block content %}
+        {% endblock %}
     </div>
+
 
 </body>
 </html>

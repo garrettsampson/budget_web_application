@@ -1,132 +1,197 @@
 # models.py
 """
-This file defines the DATABASE STRUCTURE for your app using SQLAlchemy.
+This file defines the DATABASE STRUCTURE (tables) for your application
+using SQLAlchemy, which is the ORM (Object Relational Mapper) used by
+Flask-SQLAlchemy.
 
-Instead of writing raw SQL like:
-    CREATE TABLE users (...);
+⚠️ IMPORTANT CONCEPTS TO UNDERSTAND:
 
-You define Python CLASSES (User, IncomeWeek), and SQLAlchemy turns those
-into actual database tables behind the scenes.
-
-Each class that inherits from db.Model becomes a table.
-Each db.Column(...) becomes a column in that table.
+1. SQLAlchemy turns Python CLASSES → SQL tables.
+2. Each class variable defined with `db.Column()` becomes a column.
+3. Every object you create (User(), IncomeWeek()) becomes a ROW.
+4. SQLAlchemy automatically handles table creation, relationships,
+   foreign keys, updates, deletes, etc.
 """
 
 from flask_sqlalchemy import SQLAlchemy
-from datetime import datetime  # <-- IMPORTANT: this fixes the underline on datetime.utcnow
+from datetime import datetime   # Needed for timestamp defaults
 
-# This "db" object is the main handle we use to talk to the database.
-# Your Flask app (in app.py) will call db.init_app(app) to connect this
-# to the actual SQLite database file.
+# -------------------------------------------------------------------
+# db = SQLAlchemy()
+# -------------------------------------------------------------------
+# This creates ONE SQLAlchemy "database engine" object.
+# You do NOT connect to the database yet — that happens in app.py when
+# you call:
+#       db.init_app(app)
+#
+# This db object is shared across the entire application.
+# Every model class below uses THIS `db` instance.
 db = SQLAlchemy()
 
 
+# ===================================================================
+# USER MODEL
+# ===================================================================
 class User(db.Model):
     """
-    Represents ONE user of your app.
+    Represents ONE user of the application.
 
-    Later, when we add Google login, each person who logs in with their
-    Google account will have one row in this table.
+    A model class becomes a TABLE called 'user' by default.
+    (SQLAlchemy lowercases the class name.)
 
-    For now, we just create a single dummy user so you can build and test
-    all features without worrying about authentication yet.
+    Later, when we add Google OAuth login:
+        - Each person logging in will get exactly one User row.
+        - Their email will be unique.
+        - Every IncomeWeek they create will reference their user_id.
     """
 
-    # 'id' is the PRIMARY KEY.
-    # primary_key=True means:
-    #   - This uniquely identifies each row.
-    #   - The database will auto-generate a new integer for each new user.
+    # --------------------------------------------------------------
+    # id = PRIMARY KEY
+    # --------------------------------------------------------------
+    # Primary key = unique identifier for every row.
+    # SQLAlchemy automatically assigns a new integer to each user.
     id = db.Column(db.Integer, primary_key=True)
 
-    # 'email' is a string column up to 255 characters.
-    # unique=True  -> no two users can have the same email.
-    # nullable=False -> this field CANNOT be empty; database will reject a NULL here.
+    # --------------------------------------------------------------
+    # email = STRING COLUMN
+    # --------------------------------------------------------------
+    # unique=True     → no two users may share the same email
+    # nullable=False  → email cannot be NULL in the database
     #
-    # "nullable" means "can this be NULL in the database?"
-    # - nullable=False: must have a value.
-    # - nullable=True: allowed to be empty / NULL.
+    # NOTE: nullable=True means the database ALLOWS NULL values.
+    #       nullable=False means the field MUST have a value.
+    #
+    # In professional applications, emails are ALWAYS required.
     email = db.Column(db.String(255), unique=True, nullable=False)
 
-    # 'created_at' stores when this user was created.
-    # db.DateTime means the type is a datetime object (date + time).
+    # --------------------------------------------------------------
+    # created_at = DATETIME COLUMN (automatic timestamp)
+    # --------------------------------------------------------------
+    # db.DateTime         → stores both date + time
+    # default=datetime.utcnow
+    #       - `default=` means SQLAlchemy will CALL this function
+    #         whenever a new row is created.
+    #       - We do not put parentheses, because SQLAlchemy must call
+    #         the function itself each time.
     #
-    # default=datetime.utcnow means:
-    #   - If you don't specify created_at when creating a User,
-    #     SQLAlchemy will call datetime.utcnow() and use that.
+    # Why UTC?
+    # - UTC timestamps are standard in databases.
+    # - Local timezones cause major issues when traveling/international.
     #
-    # NOTE: we imported datetime from datetime at the top:
-    #   from datetime import datetime
-    #
-    # If you don't import that, VS Code underlines 'datetime' because it
-    # doesn't know what that name refers to.
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 
+# ===================================================================
+# INCOME WEEK MODEL
+# ===================================================================
 class IncomeWeek(db.Model):
     """
-    Stores income information for ONE WEEK of a specific month and year.
+    Represents ONE WEEK of income for a specific user, month, and year.
 
-    Example row:
-        user_id: 1
-        year: 2025
-        month: 11  (November)
-        week_index: 1  (Week 1)
-        hourly_pay: 20.00
-        hours: 30.0
-        tax_percent: 10.0
-        gross: 600.00
-        net: 540.00
+    Example:
 
-    In your app, you'll have multiple IncomeWeek rows per month.
+        user_id     = 1
+        year        = 2025
+        month       = 11
+        week_index  = 2
+        hourly_pay  = 20.00
+        hours       = 35
+        tax_percent = 8
+        gross       = 700.00
+        net         = 644.00
+
+    This is the core of your budgeting system. Every week you enter
+    produces one row in this table.
     """
 
-    # Primary key for this table.
+    # --------------------------------------------------------------
+    # id = PRIMARY KEY
+    # --------------------------------------------------------------
+    # Just like User.id, this gives each income entry a unique ID.
     id = db.Column(db.Integer, primary_key=True)
 
-    # Link this income entry to the user it belongs to.
+    # --------------------------------------------------------------
+    # FOREIGN KEY: user_id
+    # --------------------------------------------------------------
+    # This links each IncomeWeek to the user who created it.
     #
-    # ForeignKey("user.id") means this column references the 'id' column
-    # in the 'user' table.
+    # db.ForeignKey("user.id") means:
+    #     - Look at the "user" table
+    #     - Use the "id" column
     #
-    # nullable=False means you MUST provide a user_id for every IncomeWeek.
+    # nullable=False means every IncomeWeek MUST belong to a user.
+    #
+    # IMPORTANT:
+    #   SQLAlchemy does NOT automatically enforce cascading deletes
+    #   unless you configure it (we'll talk about this later).
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
 
-    # YEAR and MONTH describe which month this income belongs to.
+    # --------------------------------------------------------------
+    # year & month (INTEGER COLUMNS)
+    # --------------------------------------------------------------
+    # These fields classify WHICH month the income belongs to.
+    # They allow us to GROUP weekly entries into a monthly summary.
+    #
     # Example:
-    #   year = 2025
-    #   month = 11 (for November)
-    #
-    # We'll use these to pull all weeks for a given month and show your
-    # monthly summary.
+    # year=2025, month=11 → November 2025
     year = db.Column(db.Integer, nullable=False)
-    month = db.Column(db.Integer, nullable=False)      # 1–12
+    month = db.Column(db.Integer, nullable=False)   # 1 to 12 only
 
-    # week_index is your own label for "Week 1", "Week 2", etc.
-    # It doesn't represent exact dates, just an index.
+    # --------------------------------------------------------------
+    # week_index (INTEGER)
+    # --------------------------------------------------------------
+    # This identifies the "week number" within the month.
+    # It is NOT tied to calendar dates — it's simply:
+    #   - Week 1
+    #   - Week 2
+    #   - ... up to 5 possible entries
     #
-    # We'll sort by this in the monthly view so that the weeks appear
-    # in order.
-    week_index = db.Column(db.Integer, nullable=False)  # e.g. 1..5
+    # Later, we will prevent duplicate week entries using:
+    # filter_by(user_id, year, month, week_index)
+    week_index = db.Column(db.Integer, nullable=False)
 
-    # INPUT FIELDS:
-    # These store what you typed into the form.
+    # --------------------------------------------------------------
+    # INPUT FIELDS (the data the user provides)
+    # --------------------------------------------------------------
+    # We store hourly pay, hours worked, and tax percent.
     #
-    # Float means decimal numbers are allowed (not just integers).
+    # Using Float type because:
+    #   - Hours may not always be an integer (ex: 37.5 hrs)
+    #   - Money values require decimals
     hourly_pay = db.Column(db.Float, nullable=False)
     hours = db.Column(db.Float, nullable=False)
+
+    # tax_percent represents the PERCENT (like 8.0 for 8%),
+    # not the decimal (0.08). We convert it manually.
     tax_percent = db.Column(db.Float, nullable=False)
 
-    # COMPUTED FIELDS:
-    # We calculate these in Python (gross = hourly * hours, net = gross * (1 - tax%))
-    # and store them so they are easy to use later.
+    # --------------------------------------------------------------
+    # COMPUTED FIELDS (gross + net income)
+    # --------------------------------------------------------------
+    # We calculate these BEFORE saving:
+    #
+    # gross = hourly_pay * hours
+    # net   = gross * (1 - (tax_percent / 100))
+    #
+    # We store these values so we don’t need to recalculate them
+    # every time we display them in a template.
     gross = db.Column(db.Float, nullable=False)
     net = db.Column(db.Float, nullable=False)
 
-    # Relationship: this creates a connection from IncomeWeek to User.
+    # --------------------------------------------------------------
+    # RELATIONSHIP: user = reference to parent User object
+    # --------------------------------------------------------------
+    # SQLAlchemy automatically creates a convenient link:
     #
-    # After this, each IncomeWeek instance has a .user attribute that gives you
-    # the User object it belongs to.
+    # income_week = IncomeWeek(...)
+    # income_week.user → gives the User object for this income row
     #
-    # backref='income_weeks' means the user object also gets a '.income_weeks'
-    # attribute that lists all IncomeWeek rows for that user.
+    # backref='income_weeks'
+    #       - Gives User objects a list of related income entries.
+    #         Example:
+    #              some_user.income_weeks → list of all IncomeWeek rows
+    #
+    # lazy=True:
+    #       - Means SQLAlchemy loads related rows only when first accessed.
+    #       - Prevents unnecessary database queries.
     user = db.relationship('User', backref=db.backref('income_weeks', lazy=True))
