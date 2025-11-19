@@ -111,6 +111,53 @@ These classes come from TailwindCSS.
         </div>
     </nav>
 
+        <!-- ===========================================================
+         TOAST FLASH MESSAGES (Bottom-Right Corner)
+         Soft pastel colors — auto fade — non-intrusive
+    ============================================================ -->
+    <div id="toast-container" class="fixed bottom-6 right-6 space-y-3 z-50">
+        {% with messages = get_flashed_messages(with_categories=True) %}
+            {% if messages %}
+                {% for category, message in messages %}
+
+                    <!-- Pastel Toast Box -->
+                    <div class="toast px-4 py-3 rounded-lg shadow 
+                                text-gray-800 border-l-4 w-80
+                                {% if category == 'success' %} bg-green-100 border-green-400 {% endif %}
+                                {% if category == 'error' %} bg-red-100 border-red-400 {% endif %}
+                                {% if category == 'warning' %} bg-yellow-100 border-yellow-400 {% endif %}">
+                        <p class="text-sm font-medium">{{ message }}</p>
+                    </div>
+
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+    </div>
+
+    <!-- =====================================================================================
+         AUTO FADE-OUT SCRIPT
+         - Fades messages out after 2.5 seconds
+         - Removes them from the DOM after fading
+         - Keeps UI clean and modern
+    ===================================================================================== -->
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+            const toasts = document.querySelectorAll(".toast");
+
+            toasts.forEach((toast) => {
+                // Start fade after 2.5 seconds
+                setTimeout(() => {
+                    toast.style.transition = "opacity 0.8s ease";
+                    toast.style.opacity = "0";
+
+                    // Remove from DOM after fade completes
+                    setTimeout(() => toast.remove(), 800);
+                }, 2500);
+            });
+        });
+    </script>
+
+
 
 
     <!-- 
