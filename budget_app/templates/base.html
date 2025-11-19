@@ -56,6 +56,8 @@ Flask uses Jinja2 templating, and this file defines the page container.
         - The moment you remove this line, all styling disappears.
     -->
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js" defer></script>
+
 </head>
 
 
@@ -104,7 +106,40 @@ These classes come from TailwindCSS.
                 so clicking them will show a 404 until we build those pages.
             -->
             <a href="/" class="hover:text-blue-500">Home</a>
-            <a href="/income" class="hover:text-blue-500">Income</a>
+            <!-- INCOME DROPDOWN MENU -->
+            <div x-data="{ open: false }" class="relative">
+                <!-- Dropdown trigger -->
+                <button 
+                    @click="open = !open" 
+                    @click.away="open = false"
+                    class="hover:text-blue-500 flex items-center gap-1"
+                >
+                    Income
+                    <svg class="w-4 h-4 mt-1" fill="none" stroke="currentColor" stroke-width="2"
+                        viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                            d="M19 9l-7 7-7-7" />
+                    </svg>
+                </button>
+
+                <!-- Dropdown list -->
+                <div 
+                    x-show="open"
+                    x-transition
+                    class="absolute left-0 mt-2 w-48 bg-white text-gray-700 shadow-lg rounded-lg border border-gray-200"
+                >
+                    <a href="{{ url_for('income_form') }}" 
+                    class="block px-4 py-2 hover:bg-blue-100 rounded-t-lg">
+                        Add Weekly Income
+                    </a>
+
+                    <a href="{{ url_for('income_select_month') }}" 
+                    class="block px-4 py-2 hover:bg-blue-100 rounded-b-lg">
+                        Monthly Summary
+                    </a>
+                </div>
+            </div>
+
             <a href="/savings" class="hover:text-blue-500">Savings</a>
             <a href="/yearly" class="hover:text-blue-500">Yearly</a>
             <a href="/goals" class="hover:text-blue-500">Goals</a>
