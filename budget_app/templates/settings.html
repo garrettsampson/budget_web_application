@@ -1,0 +1,153 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<h1 class="text-2xl font-bold mb-4">Settings</h1>
+
+<p class="text-gray-700 mb-6">
+  Customize how your Budget App looks. Choose a preset theme or define your own custom colors.
+</p>
+
+<!-- PRESET THEMES -->
+<div class="app-card rounded-lg p-4 mb-8">
+  <h2 class="text-xl font-semibold mb-3">Preset Themes</h2>
+  <p class="text-sm text-gray-600 mb-3">
+    Click a theme to apply it instantly. Your choice is saved in your browser.
+  </p>
+
+  <div class="flex flex-wrap gap-3">
+    <button class="btn-secondary" onclick="setTheme('pastel-blue')">
+      Pastel Blue (Default)
+    </button>
+    <button class="btn-secondary" onclick="setTheme('pastel-green')">
+      Pastel Green
+    </button>
+    <button class="btn-secondary" onclick="setTheme('pastel-purple')">
+      Pastel Purple
+    </button>
+    <button class="btn-secondary" onclick="setTheme('warm-sunset')">
+      Warm Sunset
+    </button>
+    <button class="btn-secondary" onclick="setTheme('rose-pink')">
+      Rose Pink
+    </button>
+    <button class="btn-secondary" onclick="setTheme('dark-mode')">
+      Dark Mode
+    </button>
+    <button class="btn-secondary" onclick="setTheme('terminal-green')">
+      Terminal Green
+    </button>
+  </div>
+</div>
+
+<!-- CUSTOM THEME -->
+<div class="app-card rounded-lg p-4 mb-8">
+  <h2 class="text-xl font-semibold mb-3">Custom Theme</h2>
+  <p class="text-sm text-gray-600 mb-4">
+    Define your own colors. After saving, your custom theme will be used until you pick another.
+  </p>
+
+  <form id="custom-theme-form" class="space-y-4 max-w-xl">
+    <!-- Primary and hover -->
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div>
+        <label class="block text-sm font-medium mb-1">Primary Color</label>
+        <input type="color" name="primary" value="#3b82f6" class="w-16 h-8 p-0 border border-gray-300 rounded">
+      </div>
+      <div>
+        <label class="block text-sm font-medium mb-1">Primary Hover</label>
+        <input type="color" name="primaryHover" value="#2563eb" class="w-16 h-8 p-0 border border-gray-300 rounded">
+      </div>
+    </div>
+
+    <!-- Background / Navbar / Card -->
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div>
+        <label class="block text-sm font-medium mb-1">Page Background</label>
+        <input type="color" name="bg" value="#f1f5f9" class="w-16 h-8 p-0 border border-gray-300 rounded">
+      </div>
+      <div>
+        <label class="block text-sm font-medium mb-1">Navbar Background</label>
+        <input type="color" name="navbarBg" value="#ffffff" class="w-16 h-8 p-0 border border-gray-300 rounded">
+      </div>
+      <div>
+        <label class="block text-sm font-medium mb-1">Card Background</label>
+        <input type="color" name="cardBg" value="#ffffff" class="w-16 h-8 p-0 border border-gray-300 rounded">
+      </div>
+    </div>
+
+    <!-- Border / Input / Text -->
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div>
+        <label class="block text-sm font-medium mb-1">Border Color</label>
+        <input type="color" name="border" value="#e5e7eb" class="w-16 h-8 p-0 border border-gray-300 rounded">
+      </div>
+      <div>
+        <label class="block text-sm font-medium mb-1">Input Background</label>
+        <input type="color" name="inputBg" value="#ffffff" class="w-16 h-8 p-0 border border-gray-300 rounded">
+      </div>
+      <div>
+        <label class="block text-sm font-medium mb-1">Text Color</label>
+        <input type="color" name="text" value="#0f172a" class="w-16 h-8 p-0 border border-gray-300 rounded">
+      </div>
+    </div>
+
+    <!-- Status colors -->
+    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <div>
+        <label class="block text-sm font-medium mb-1">Success Color</label>
+        <input type="color" name="success" value="#22c55e" class="w-16 h-8 p-0 border border-gray-300 rounded">
+      </div>
+      <div>
+        <label class="block text-sm font-medium mb-1">Error Color</label>
+        <input type="color" name="error" value="#ef4444" class="w-16 h-8 p-0 border border-gray-300 rounded">
+      </div>
+      <div>
+        <label class="block text-sm font-medium mb-1">Warning Color</label>
+        <input type="color" name="warning" value="#f97316" class="w-16 h-8 p-0 border border-gray-300 rounded">
+      </div>
+    </div>
+
+    <div class="pt-4 flex gap-3">
+      <button type="submit" class="btn-primary">
+        Save Custom Theme
+      </button>
+      <button type="button" class="btn-secondary" onclick="setTheme('pastel-blue')">
+        Reset to Default
+      </button>
+    </div>
+  </form>
+</div>
+
+<script>
+  // Handle custom theme form submission
+  document.getElementById("custom-theme-form").addEventListener("submit", function (e) {
+    e.preventDefault();
+
+    const formData = new FormData(e.target);
+    const customTheme = {
+      primary: formData.get("primary"),
+      primaryHover: formData.get("primaryHover"),
+      bg: formData.get("bg"),
+      navbarBg: formData.get("navbarBg"),
+      cardBg: formData.get("cardBg"),
+      border: formData.get("border"),
+      inputBg: formData.get("inputBg"),
+      text: formData.get("text"),
+      success: formData.get("success"),
+      error: formData.get("error"),
+      warning: formData.get("warning"),
+    };
+
+    // Use the helper we defined in base.html
+    if (window.setCustomTheme) {
+      window.setCustomTheme(customTheme);
+    }
+
+    // Optional: You could flash a toast using Flask,
+    // but for now this is client-side only.
+    alert("Custom theme saved! (This uses localStorage in your browser.)");
+  });
+</script>
+
+{% endblock %}

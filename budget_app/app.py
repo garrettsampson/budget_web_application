@@ -29,6 +29,8 @@ from config import Config
 from datetime import datetime
 
 
+
+
 # ======================================================================
 # APPLICATION FACTORY FUNCTION
 # ======================================================================
@@ -146,6 +148,21 @@ def create_app():
             total_net=total_net,
             total_tax=total_tax,
         )
+    
+    # ==================================================================
+    # ROUTE: Settings (Theme selection etc.)
+    # ==================================================================
+    @app.route("/settings")
+    def settings():
+        """
+        Settings page.
+        Right now it only contains theme selection UI, but later we can add:
+        - account settings
+        - partner mode
+        - currency preferences
+        - notification preferences
+        """
+        return render_template("settings.html")
 
     # ==================================================================
     # ROUTE: Delete a single week's entry
