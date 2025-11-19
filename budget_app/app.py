@@ -156,6 +156,37 @@ def create_app():
             month = int(request.form["month"])
             week_index = int(request.form["week_index"])
 
+                        # ================================================================
+            # DUPLICATE PREVENTION CHECK
+            # ---------------------------------------------------------------
+            # Before saving a new week, check if one already exists for:
+            #   - current user
+            #   - same year
+            #   - same month
+            #   - same week_index
+            #
+            # If a duplicate is found:
+            #   → Show an error flash message
+            #   → Redirect back to monthly summary
+            #   → DO NOT save the duplicate
+            # ================================================================
+
+            existing_entry = IncomeWeek.query.filter_by(
+                user_id=user.id,
+                year=year,
+                month=month,
+                week_index=week_index
+            ).first()
+
+            if existing_entry:
+                # Show an unobtrusive pastel toast (from Step 1)
+                from flask import flash
+                flash(f"Week {week_index} for {month}/{year} already exists.", "error")
+
+                # Redirect to that month’s summary so the user can see the existing entries
+                return redirect(url_for("income_month_view", year=year, month=month))
+
+
             # ----------------------------------------------------------
             # Calculate the weekly income:
             # - gross income (before taxes)
