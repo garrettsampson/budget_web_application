@@ -109,7 +109,7 @@ def create_app():
             )
 
             # Add the new row to the session (like staging changes)
-            db.Session.add(entry)
+            db.session.add(entry)
 
             # Commit the changes to permanently save them in the database
             db.session.commit()
