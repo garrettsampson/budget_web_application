@@ -327,6 +327,39 @@ def create_app():
         # Step 5: Redirect back to the monthly summary
         return redirect(url_for("income_month_view", year=year, month=month))
 
+        # ================================================================
+    # ROUTE: Reset ALL income data for the current user
+    # URL: /income/reset
+    # Method: POST
+    # ================================================================
+    @app.route("/income/reset", methods=["POST"])
+    def reset_income():
+        """
+        Deletes ALL IncomeWeek rows for the current user.
+
+        Steps:
+        1. Identify the current user.
+        2. Delete all rows matching user_id.
+        3. Commit changes.
+        4. Flash a warning toast.
+        5. Redirect to month selector page so user can choose a fresh month.
+        """
+
+        from flask import flash
+
+        user = get_current_user()
+
+        # Step 1: Delete all rows that belong to this user
+        IncomeWeek.query.filter_by(user_id=user.id).delete()
+
+        # Step 2: Commit the change
+        db.session.commit()
+
+        # Step 3: Soft pastel warning toast
+        flash("All income data has been reset.", "warning")
+
+        # Step 4: Redirect to month selection page
+        return redirect(url_for("income_select_month"))
 
     # Must return the app instance
     return app

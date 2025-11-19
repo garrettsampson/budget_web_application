@@ -178,6 +178,19 @@ If no entries exist, we show a friendly message.
 >
   Add another week
 </a>
+<!-- ================================================================
+     RESET ALL INCOME DATA BUTTON
+     - Large red warning button
+     - Sends a POST request to /income/reset
+     - Shows a pastel toast on success
+================================================================ -->
+<form action="{{ url_for('reset_income') }}" method="POST" class="mt-4">
+    <button 
+        class="bg-red-600 hover:bg-red-700 text-white font-semibold px-4 py-2 rounded"
+        onclick="return confirm('Are you sure you want to delete ALL income data? This cannot be undone.');">
+        Reset All Income Data
+    </button>
+</form>
 
 
 {% endblock %}
