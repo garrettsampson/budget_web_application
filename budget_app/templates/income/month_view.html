@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+
+{% block content %}
+<h2 class="text-2xl font-bold mb-4">
+  Income Summary for {{ month }}/{{ year }}
+</h2>
+
+<!--
+  'entries' is a list of IncomeWeek objects passed from app.py.
+
+  In Jinja:
+    {% if entries %}   -> checks if the list is non-empty
+    {% for e in entries %} -> loops over each IncomeWeek e
+-->
+{% if entries %}
+
+  <!-- TABLE OF WEEKLY ENTRIES -->
+  <table class="min-w-full bg-white shadow rounded-lg overflow-hidden">
+    <thead class="bg-gray-100">
+      <tr>
+        <th class="px-4 py-2 text-left text-sm font-semibold">Week</th>
+        <th class="px-4 py-2 text-left text-sm font-semibold">Hourly Pay</th>
+        <th class="px-4 py-2 text-left text-sm font-semibold">Hours</th>
+        <th class="px-4 py-2 text-left text-sm font-semibold">Gross ($)</th>
+        <th class="px-4 py-2 text-left text-sm font-semibold">Net ($)</th>
+        <th class="px-4 py-2 text-left text-sm font-semibold">Tax Paid ($)</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for e in entries %}
+      <tr class="border-t">
+        <td class="px-4 py-2 text-sm">{{ e.week_index }}</td>
+
+        <!--
+          "{{ "%.2f"|format(e.hourly_pay) }}" formats the float to 2 decimals
+          (e.g. 20 becomes 20.00)
+        -->
+        <td class="px-4 py-2 text-sm">{{ "%.2f"|format(e.hourly_pay) }}</td>
+        <td class="px-4 py-2 text-sm">{{ "%.2f"|format(e.hours) }}</td>
+        <td class="px-4 py-2 text-sm">{{ "%.2f"|format(e.gross) }}</td>
+        <td class="px-4 py-2 text-sm">{{ "%.2f"|format(e.net) }}</td>
+        <td class="px-4 py-2 text-sm">{{ "%.2f"|format(e.gross - e.net) }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  <!-- MONTH TOTALS -->
+  <div class="mt-6 bg-white shadow rounded-lg p-4">
+    <h3 class="text-xl font-semibold mb-2">Month Totals</h3>
+    <ul class="space-y-1 text-sm">
+      <li><strong>Total Gross:</strong> {{ "%.2f"|format(total_gross) }}</li>
+      <li><strong>Total Net:</strong> {{ "%.2f"|format(total_net) }}</li>
+      <li><strong>Total Tax:</strong> {{ "%.2f"|format(total_tax) }}</li>
+    </ul>
+  </div>
+
+{% else %}
+  <!-- This shows if there are no entries for that month yet -->
+  <p class="text-gray-600">
+    No income entries recorded yet for this month.
+  </p>
+{% endif %}
+
+<!-- Button to go back to the income form -->
+<a
+  href="{{ url_for('income_form') }}"
+  class="inline-block mt-6 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2 rounded"
+>
+  Add another week
+</a>
+
+{% endblock %}

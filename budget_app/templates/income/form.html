@@ -1,0 +1,141 @@
+{# This line tells Jinja (the template engine) that this file uses base.html as a layout. #}
+{% extends "base.html" %}
+
+{# Everything inside this block gets inserted into the "content" block of base.html #}
+{% block content %}
+<h2 class="text-2xl font-bold mb-4">Income Calculation</h2>
+
+<p class="mb-4 text-gray-700">
+  Enter your weekly income details below. We will calculate your gross and net pay
+  for that week and save it under the selected month and year.
+</p>
+
+<!--
+  HTML FORM EXPLANATION:
+
+  <form> ... </form> defines a form.
+
+  method="post":
+    This tells the browser to send the form data as a POST request.
+
+  action="">
+    If you leave it empty, the form submits back to the SAME URL.
+    So on /income, submitting will send a POST to /income, which Flask
+    handles in the income_form() route.
+-->
+<form method="post" class="bg-white shadow rounded-lg p-6 space-y-4">
+
+  <!-- YEAR INPUT -->
+  <div>
+    <!-- <label> ties a human-readable label to the input field -->
+    <label class="block text-sm font-medium mb-1" for="year">Year</label>
+
+    <!--
+      <input> is a single-line text/number input.
+      type="number": only numeric input.
+      name="year": the KEY Flask will use, e.g. request.form["year"].
+      value="{{ current_year }}": Jinja expression that prints the default year.
+      required: HTML5 attribute meaning field cannot be empty.
+    -->
+    <input
+      id="year"
+      type="number"
+      name="year"
+      value="{{ current_year }}"
+      class="w-full border rounded px-3 py-2"
+      required
+    >
+  </div>
+
+  <!-- MONTH INPUT -->
+  <div>
+    <label class="block text-sm font-medium mb-1" for="month">Month (1-12)</label>
+    <input
+      id="month"
+      type="number"
+      name="month"
+      value="{{ current_month }}"
+      min="1"
+      max="12"
+      class="w-full border rounded px-3 py-2"
+      required
+    >
+  </div>
+
+  <!-- WEEK INDEX INPUT -->
+  <div>
+    <label class="block text-sm font-medium mb-1" for="week_index">Week Number (1–5)</label>
+    <input
+      id="week_index"
+      type="number"
+      name="week_index"
+      value="1"
+      min="1"
+      max="5"
+      class="w-full border rounded px-3 py-2"
+      required
+    >
+    <p class="text-xs text-gray-500 mt-1">
+      This is your label for "Week 1", "Week 2", etc. It doesn't have to match exact calendar weeks.
+    </p>
+  </div>
+
+  <!-- HOURLY PAY INPUT -->
+  <div>
+    <label class="block text-sm font-medium mb-1" for="hourly_pay">Hourly Pay ($)</label>
+    <input
+      id="hourly_pay"
+      type="number"
+      step="0.01"  <!-- step controls how fine-grained the number can be -->
+      name="hourly_pay"
+      class="w-full border rounded px-3 py-2"
+      required
+    >
+  </div>
+
+  <!-- HOURS WORKED INPUT -->
+  <div>
+    <label class="block text-sm font-medium mb-1" for="hours_worked">Hours Worked (this week)</label>
+    <input
+      id="hours_worked"
+      type="number"
+      step="0.01"
+      name="hours_worked"
+      class="w-full border rounded px-3 py-2"
+      required
+    >
+  </div>
+
+  <!-- TAX PERCENTAGE INPUT -->
+  <div>
+    <label class="block text-sm font-medium mb-1" for="tax_percent">Tax Percentage (%)</label>
+    <input
+      id="tax_percent"
+      type="number"
+      step="0.01"
+      name="tax_percent"
+      value="10.0"
+      class="w-full border rounded px-3 py-2"
+      required
+    >
+    <p class="text-xs text-gray-500 mt-1">
+      This is an estimate. You can adjust it to match how much your actual checks lose to taxes.
+    </p>
+  </div>
+
+  <!-- SUBMIT BUTTON -->
+  <div class="pt-4">
+    <button
+      type="submit"
+      class="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2 rounded"
+    >
+      Save Week
+    </button>
+  </div>
+</form>
+
+<p class="mt-4 text-gray-600">
+  After you submit, you'll be redirected to a summary for that month showing all weeks you've entered.
+</p>
+
+{% endblock %}
