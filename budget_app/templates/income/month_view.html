@@ -106,13 +106,15 @@ If no entries exist, we show a friendly message.
         - Shows a small red delete button
         - Triggers a flash toast on success
     -->
-    <form action="{{ url_for('delete_week', week_id=e.id) }}" method="POST" onsubmit="return confirm('Delete this week?');">
+    <!-- DELETE BUTTON (NO POP-UP CONFIRMATION) -->
+    <form action="{{ url_for('delete_week', week_id=e.id) }}" method="POST">
         <button 
-            class="text-red-600 hover:text-red-800 font-semibold text-sm"
+            class="text-red-600 hover:text-red-800 font-semibold text-sm hover:underline"
             title="Delete this week">
             Delete
         </button>
     </form>
+
 
 </td>
 
