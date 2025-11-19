@@ -287,6 +287,46 @@ def create_app():
             total_net=total_net,
             total_tax=total_tax,
         )
+    
+    # ================================================================
+    # ROUTE: Delete a single week's income entry
+    # URL: /income/delete/<week_id>
+    # Method: POST
+    # ================================================================
+    @app.route("/income/delete/<int:week_id>", methods=["POST"])
+    def delete_week(week_id):
+        """
+        Deletes a single IncomeWeek entry by its ID.
+
+        Steps:
+        1. Query the row by primary key.
+        2. If it doesn't exist → 404 automatically (get_or_404).
+        3. Capture year/month BEFORE deleting (we need them to redirect).
+        4. Delete the row.
+        5. Commit the database change.
+        6. Flash a success message.
+        7. Redirect back to that month's summary.
+        """
+
+        from flask import flash
+
+        # Step 1: Fetch the row or return a 404 error if not found
+        entry = IncomeWeek.query.get_or_404(week_id)
+
+        # Step 2: Save month/year for redirect AFTER deletion
+        year = entry.year
+        month = entry.month
+
+        # Step 3: Delete the row
+        db.session.delete(entry)
+        db.session.commit()
+
+        # Step 4: Pastel success toast
+        flash(f"Week {entry.week_index} deleted successfully.", "success")
+
+        # Step 5: Redirect back to the monthly summary
+        return redirect(url_for("income_month_view", year=year, month=month))
+
 
     # Must return the app instance
     return app

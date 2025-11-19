@@ -65,6 +65,7 @@ If no entries exist, we show a friendly message.
         <th class="px-4 py-2 text-left text-sm font-semibold">Gross ($)</th>
         <th class="px-4 py-2 text-left text-sm font-semibold">Net ($)</th>
         <th class="px-4 py-2 text-left text-sm font-semibold">Tax Paid ($)</th>
+        <th class="px-4 py-2 text-left text-sm font-semibold">Actions</th>
       </tr>
     </thead>
 
@@ -95,6 +96,26 @@ If no entries exist, we show a friendly message.
 
         <!-- Tax Paid = gross - net -->
         <td class="px-4 py-2 text-sm">{{ "%.2f"|format(e.gross - e.net) }}</td>
+        <td class="px-4 py-2 text-sm">
+
+    <!-- 
+        DELETE BUTTON
+        ----------------------------
+        - Uses a POST form for safety
+        - Submits to /income/delete/<week_id>
+        - Shows a small red delete button
+        - Triggers a flash toast on success
+    -->
+    <form action="{{ url_for('delete_week', week_id=e.id) }}" method="POST" onsubmit="return confirm('Delete this week?');">
+        <button 
+            class="text-red-600 hover:text-red-800 font-semibold text-sm"
+            title="Delete this week">
+            Delete
+        </button>
+    </form>
+
+</td>
+
       </tr>
       {% endfor %}
 
