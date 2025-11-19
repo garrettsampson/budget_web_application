@@ -1,0 +1,84 @@
+{#
+======================================================================================
+select_month.html — MONTH SELECTION PAGE
+======================================================================================
+
+Purpose:
+--------
+This page allows the user to pick a YEAR and a MONTH, then quickly jump
+to the correct income summary page.
+
+This is rendered by:
+    @app.route("/income/select")
+
+After submitting the form, it sends a GET request to:
+    /income/view?year=YYYY&month=MM
+
+Which redirects to:
+    /income/<year>/<month>
+
+======================================================================================
+#}
+
+{% extends "base.html" %}
+
+{% block content %}
+
+<h2 class="text-2xl font-bold mb-4">Select Month to View Income Summary</h2>
+
+<p class="text-gray-700 mb-4">
+  Choose a year and month below to view your saved weekly income entries.
+</p>
+
+<!-- ================================================================
+     FORM: Select year/month
+     - Sends data using GET to /income/view
+     - The backend then redirects to /income/<year>/<month>
+================================================================ -->
+<form action="{{ url_for('income_view_redirect') }}" method="GET" 
+      class="bg-white shadow rounded-lg p-6 space-y-4 max-w-lg">
+
+    <!-- YEAR INPUT -->
+    <div>
+        <label class="block text-sm font-medium mb-1" for="year">
+            Year
+        </label>
+        <input
+            id="year"
+            name="year"
+            type="number"
+            value="{{ current_year }}"
+            class="w-full border rounded px-3 py-2"
+            required
+        >
+    </div>
+
+    <!-- MONTH INPUT -->
+    <div>
+        <label class="block text-sm font-medium mb-1" for="month">
+            Month (1–12)
+        </label>
+        <input
+            id="month"
+            name="month"
+            type="number"
+            min="1"
+            max="12"
+            value="{{ current_month }}"
+            class="w-full border rounded px-3 py-2"
+            required
+        >
+    </div>
+
+    <!-- SUBMIT -->
+    <div class="pt-4">
+        <button 
+            type="submit"
+            class="bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2 rounded">
+            View Summary
+        </button>
+    </div>
+
+</form>
+
+{% endblock %}

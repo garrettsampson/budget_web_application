@@ -361,6 +361,52 @@ def create_app():
         # Step 4: Redirect to month selection page
         return redirect(url_for("income_select_month"))
 
+        # ================================================================
+    # ROUTE: Select a month/year to view income summary
+    # URL: /income/select
+    # Method: GET
+    # ================================================================
+    @app.route("/income/select")
+    def income_select_month():
+        """
+        Renders a small page that lets the user choose:
+        - a year
+        - a month (1–12)
+        
+        After submitting, they will be redirected to:
+            /income/<year>/<month>
+        """
+        today = datetime.today()
+        return render_template(
+            "income/select_month.html",
+            current_year=today.year,
+            current_month=today.month
+        )
+
+
+    # ================================================================
+    # ROUTE: Redirect based on selected year/month
+    # URL: /income/view?year=XXXX&month=XX
+    # Method: GET
+    # ================================================================
+    @app.route("/income/view")
+    def income_view_redirect():
+        """
+        Takes ?year=YYYY&month=MM from the query string,
+        and redirects to the proper monthly summary page.
+        """
+        year = request.args.get("year")
+        month = request.args.get("month")
+
+        # If missing values, redirect back to selector
+        if not year or not month:
+            from flask import flash
+            flash("Please select both a year and month.", "error")
+            return redirect(url_for("income_select_month"))
+
+        return redirect(url_for("income_month_view", year=year, month=month))
+
+
     # Must return the app instance
     return app
 
