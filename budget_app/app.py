@@ -12,21 +12,6 @@ High-Level Flow of This File:
 4. We create database tables (if they don't already exist).
 5. We define helper functions (such as get_current_user).
 6. We define ROUTES — these are URLs that users can visit.
-
-Current Routes in This App:
---------------------------------------------------------------------
-"/"                     → The home dashboard page.
-"/income"               → Form for entering weekly income.
-"/income/<year>/<month>" → Monthly summary for a selected month.
-
-This file will grow as we add:
-- Savings section
-- Yearly breakdown
-- Goals section
-- Delete/reset features
-- Google login
-- Partner split
-- More tools and pages
 """
 
 # --------------------------
@@ -48,129 +33,50 @@ from datetime import datetime
 # APPLICATION FACTORY FUNCTION
 # ======================================================================
 def create_app():
-    """
-    Creates and configures the Flask application.
+    """Creates and configures the Flask application."""
 
-    Flask recommends the “Application Factory Pattern” because:
-      ● It cleanly separates setup logic.
-      ● It makes unit testing easier.
-      ● It makes it easier to create multiple app instances if needed.
-      ● It improves organization for large projects.
-
-    Anytime we want a working Flask app, we call create_app().
-    """
-
-    # Create the Flask app instance
     app = Flask(__name__)
-
-    # Load all configuration settings (SECRET_KEY, DB URI, etc.)
     app.config.from_object(Config)
 
-    # Connect the SQLAlchemy 'db' engine (from models.py) to this app.
-    # Without this, the database wouldn't know which Flask app it's tied to.
+    # Connect SQLAlchemy "db" to this Flask app
     db.init_app(app)
 
-    # --------------------------------------------------------------
-    # Ensure that the database tables exist.
-    #
-    # This block runs ONCE when you start the app.
-    # "app.app_context()" gives SQLAlchemy permission to create tables.
-    # --------------------------------------------------------------
+    # Create tables + default user if needed
     with app.app_context():
-
-        # Creates the database tables based on your models IF they don't exist yet.
-        # If the tables already exist, SQLAlchemy does nothing.
         db.create_all()
-
-        # Create a default user if none exist.
-        # This makes your app easy to test before Google login is added.
         if not User.query.first():
             dummy_user = User(email="you@example.com")
             db.session.add(dummy_user)
             db.session.commit()
 
-    # --------------------------------------------------------------
-    # Helper Function: get_current_user()
-    # --------------------------------------------------------------
+    # Helper function
     def get_current_user():
-        """
-        Returns the currently logged-in user.
-
-        Right now this just returns the dummy user, because authentication
-        has not yet been implemented. Later this will return:
-
-            User.query.filter_by(email=google_email).first()
-
-        after you log in with Google OAuth.
-        """
         return User.query.first()
-
 
     # ==================================================================
     # ROUTE: Home Dashboard
-    # URL: "/"
     # ==================================================================
     @app.route("/")
     def home():
-        """
-        This function runs when the user visits your website root (/).
-
-        It simply loads the dashboard.html file, located in:
-            templates/dashboard.html
-
-        In the future, the dashboard might show:
-        - Monthly summaries
-        - Recent activity
-        - Quick stats
-        - Buttons linking to savings, yearly view, etc.
-        """
         return render_template("dashboard.html")
-
 
     # ==================================================================
     # ROUTE: Weekly Income Form
-    # URL: "/income"
-    # METHODS:
-    #   GET  → Show the form
-    #   POST → Process the submitted form
     # ==================================================================
     @app.route("/income", methods=["GET", "POST"])
     def income_form():
-        # Get the current user object (the dummy user for now)
         user = get_current_user()
 
-        # --------------------------------------------------------------
-        # POST Request: the user has submitted the form.
-        # --------------------------------------------------------------
         if request.method == "POST":
-
-            # All values from <input> fields come in as strings.
-            # We must convert them to numbers before doing math.
-
-            hourly = float(request.form["hourly_pay"])       # Hourly wage
-            hours = float(request.form["hours_worked"])      # Hours worked this week
-            tax_percent = float(request.form["tax_percent"]) # Percent (e.g., 8%)
-
-            # Month and year the user selected
+            # Convert form values
+            hourly = float(request.form["hourly_pay"])
+            hours = float(request.form["hours_worked"])
+            tax_percent = float(request.form["tax_percent"])
             year = int(request.form["year"])
             month = int(request.form["month"])
             week_index = int(request.form["week_index"])
 
-                        # ================================================================
-            # DUPLICATE PREVENTION CHECK
-            # ---------------------------------------------------------------
-            # Before saving a new week, check if one already exists for:
-            #   - current user
-            #   - same year
-            #   - same month
-            #   - same week_index
-            #
-            # If a duplicate is found:
-            #   → Show an error flash message
-            #   → Redirect back to monthly summary
-            #   → DO NOT save the duplicate
-            # ================================================================
-
+            # Duplicate week prevention
             existing_entry = IncomeWeek.query.filter_by(
                 user_id=user.id,
                 year=year,
@@ -179,26 +85,15 @@ def create_app():
             ).first()
 
             if existing_entry:
-                # Show an unobtrusive pastel toast (from Step 1)
                 from flask import flash
                 flash(f"Week {week_index} for {month}/{year} already exists.", "error")
-
-                # Redirect to that month’s summary so the user can see the existing entries
                 return redirect(url_for("income_month_view", year=year, month=month))
 
-
-            # ----------------------------------------------------------
-            # Calculate the weekly income:
-            # - gross income (before taxes)
-            # - net income (after taxes)
-            # ----------------------------------------------------------
+            # Calculate gross + net
             gross = hourly * hours
             net = gross * (1 - tax_percent / 100.0)
 
-            # ----------------------------------------------------------
-            # Create a new IncomeWeek row in Python.
-            # This does NOT save it to the database yet.
-            # ----------------------------------------------------------
+            # Create entry
             entry = IncomeWeek(
                 user_id=user.id,
                 year=year,
@@ -211,73 +106,37 @@ def create_app():
                 net=net,
             )
 
-            # Stage this new row for saving
             db.session.add(entry)
-
-            # Commit = permanently write the staged changes to the DB
             db.session.commit()
 
-            # After saving, redirect to the monthly summary for the chosen month
             return redirect(url_for("income_month_view", year=year, month=month))
 
-        # --------------------------------------------------------------
-        # GET Request: user is visiting /income normally (no form submit)
-        # --------------------------------------------------------------
+        # GET Request: prefill form with today's year/month
         today = datetime.today()
-
-        # Pass today's year and month as defaults to the form.
-        # Example: If today is 2025-11-18, defaults are:
-        #   current_year=2025, current_month=11
         return render_template(
             "income/form.html",
             current_year=today.year,
             current_month=today.month,
         )
 
-
     # ==================================================================
     # ROUTE: Monthly Income Summary
-    # URL: /income/<year>/<month>
-    # Example: /income/2025/11
     # ==================================================================
     @app.route("/income/<int:year>/<int:month>")
     def income_month_view(year, month):
-        """
-        This route displays ALL weekly income entries for a given month.
-
-        The logic is:
-        1. Query the IncomeWeek table to get all entries for:
-                - the current user
-                - the selected year
-                - the selected month
-
-        2. Sort them by week_index (Week 1, Week 2, etc.).
-
-        3. Calculate:
-                - total gross income
-                - total net income
-                - total taxes paid
-
-        4. Pass everything into a template so it can display
-           a clean summary table.
-        """
-
         user = get_current_user()
 
-        # Query all weekly rows for this user/month/year.
         entries = (
             IncomeWeek.query
             .filter_by(user_id=user.id, year=year, month=month)
-            .order_by(IncomeWeek.week_index)  # sort by week number
+            .order_by(IncomeWeek.week_index)
             .all()
         )
 
-        # Calculate monthly totals
         total_gross = sum(e.gross for e in entries)
         total_net = sum(e.net for e in entries)
         total_tax = total_gross - total_net
 
-        # Render the summary template and pass all data to it
         return render_template(
             "income/month_view.html",
             year=year,
@@ -287,142 +146,73 @@ def create_app():
             total_net=total_net,
             total_tax=total_tax,
         )
-    
-    # ================================================================
-    # ROUTE: Delete a single week's income entry
-    # URL: /income/delete/<week_id>
-    # Method: POST
-    # ================================================================
+
+    # ==================================================================
+    # ROUTE: Delete a single week's entry
+    # ==================================================================
     @app.route("/income/delete/<int:week_id>", methods=["POST"])
     def delete_week(week_id):
-        """
-        Deletes a single IncomeWeek entry by its ID.
-
-        Steps:
-        1. Query the row by primary key.
-        2. If it doesn't exist → 404 automatically (get_or_404).
-        3. Capture year/month BEFORE deleting (we need them to redirect).
-        4. Delete the row.
-        5. Commit the database change.
-        6. Flash a success message.
-        7. Redirect back to that month's summary.
-        """
-
         from flask import flash
 
-        # Step 1: Fetch the row or return a 404 error if not found
         entry = IncomeWeek.query.get_or_404(week_id)
-
-        # Step 2: Save month/year for redirect AFTER deletion
         year = entry.year
         month = entry.month
 
-        # Step 3: Delete the row
         db.session.delete(entry)
         db.session.commit()
 
-        # Step 4: Pastel success toast
         flash(f"Week {entry.week_index} deleted successfully.", "success")
-
-        # Step 5: Redirect back to the monthly summary
         return redirect(url_for("income_month_view", year=year, month=month))
 
-        # ================================================================
-    # ROUTE: Reset ALL income data for the current user
-    # URL: /income/reset
-    # Method: POST
-    # ================================================================
+    # ==================================================================
+    # ROUTE: Reset ALL income data
+    # ==================================================================
     @app.route("/income/reset", methods=["POST"])
     def reset_income():
-        """
-        Deletes ALL IncomeWeek rows for the current user.
-
-        Steps:
-        1. Identify the current user.
-        2. Delete all rows matching user_id.
-        3. Commit changes.
-        4. Flash a warning toast.
-        5. Redirect to month selector page so user can choose a fresh month.
-        """
-
         from flask import flash
 
         user = get_current_user()
-
-        # Step 1: Delete all rows that belong to this user
         IncomeWeek.query.filter_by(user_id=user.id).delete()
-
-        # Step 2: Commit the change
         db.session.commit()
 
-        # Step 3: Soft pastel warning toast
         flash("All income data has been reset.", "warning")
-
-        # Step 4: Redirect to month selection page
         return redirect(url_for("income_select_month"))
 
-        # ================================================================
-    # ROUTE: Select a month/year to view income summary
-    # URL: /income/select
-    # Method: GET
-    # ================================================================
+    # ==================================================================
+    # ROUTE: Select a Month/Year
+    # ==================================================================
     @app.route("/income/select")
     def income_select_month():
-        """
-        Renders a small page that lets the user choose:
-        - a year
-        - a month (1–12)
-        
-        After submitting, they will be redirected to:
-            /income/<year>/<month>
-        """
         today = datetime.today()
         return render_template(
             "income/select_month.html",
             current_year=today.year,
-            current_month=today.month
+            current_month=today.month,
         )
 
-
-    # ================================================================
-    # ROUTE: Redirect based on selected year/month
-    # URL: /income/view?year=XXXX&month=XX
-    # Method: GET
-    # ================================================================
+    # ==================================================================
+    # ROUTE: Redirect after selecting Month/Year
+    # ==================================================================
     @app.route("/income/view")
     def income_view_redirect():
-        """
-        Takes ?year=YYYY&month=MM from the query string,
-        and redirects to the proper monthly summary page.
-        """
+        from flask import flash
+
         year = request.args.get("year")
         month = request.args.get("month")
 
-        # If missing values, redirect back to selector
         if not year or not month:
-            from flask import flash
             flash("Please select both a year and month.", "error")
             return redirect(url_for("income_select_month"))
 
         return redirect(url_for("income_month_view", year=year, month=month))
 
-
-    # Must return the app instance
     return app
 
 
 # ======================================================================
-# RUNNING THE APP DIRECTLY
+# Run the app directly
 # ======================================================================
-# The code below allows you to run:
-#       python app.py
-# and start the development server automatically.
-#
-# If this file is imported instead, this block will NOT run.
 app = create_app()
 
 if __name__ == "__main__":
-    # debug=True means:
-    #   - Live reload when you save changes
-    #   - Detailed error pages (very helpful during development)
     app.run(debug=True)
