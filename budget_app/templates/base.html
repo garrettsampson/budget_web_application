@@ -75,6 +75,7 @@ Flask uses Jinja2 templating, and this file defines the page container.
 
             /* Text */
             --color-text: #0f172a;        /* Default text color (dark slate) */
+            --color-text-secondary: #4b5563; /* Softer secondary text (descriptions, helper text) */
 
             /* Primary / accent */
             --color-primary: #3b82f6;     /* Main accent (buttons, links) */
@@ -136,9 +137,20 @@ Flask uses Jinja2 templating, and this file defines the page container.
             transform: translateY(-1px);
         }
 
+        /* Page title utility */
+        .page-title {
+            color: var(--color-text);
+        }
+
+        /* Secondary text utility (for helper paragraphs, hints, etc) */
+        .text-secondary {
+            color: var(--color-text-secondary);
+        }
+
+
         /* Navbar link styling */
         .nav-link {
-            transition: color 0.15s ease;
+            color: var(--color-text);
         }
         .nav-link:hover {
             color: var(--color-primary);
@@ -196,12 +208,14 @@ These classes come from TailwindCSS.
                         style="background-color: var(--color-card-bg); border-color: var(--color-border);"
                     >
                         <a href="{{ url_for('income_form') }}" 
-                           class="block px-4 py-2 hover:bg-blue-50 rounded-t-lg">
+                           class="block px-4 py-2 hover:bg-blue-50 rounded-t-lg"
+                           style="color: var(--color-text-secondary);">
                             Add Weekly Income
                         </a>
 
                         <a href="{{ url_for('income_select_month') }}" 
-                           class="block px-4 py-2 hover:bg-blue-50 rounded-b-lg">
+                           class="block px-4 py-2 hover:bg-blue-50 rounded-b-lg"
+                           style="color: var(--color-text-secondary);">
                             Monthly Summary
                         </a>
                     </div>
@@ -293,6 +307,7 @@ These classes come from TailwindCSS.
                 border: "#e5e7eb",
                 inputBg: "#ffffff",
                 text: "#0f172a",
+                textSecondary: "#4b5563",   // NEW
                 primary: "#3b82f6",
                 primaryHover: "#2563eb",
                 accent: "#93c5fd",
@@ -307,6 +322,7 @@ These classes come from TailwindCSS.
                 border: "#bbf7d0",
                 inputBg: "#ffffff",
                 text: "#064e3b",
+                textSecondary: "#047857",   // a bit softer than main text
                 primary: "#22c55e",
                 primaryHover: "#16a34a",
                 accent: "#bbf7d0",
@@ -321,6 +337,7 @@ These classes come from TailwindCSS.
                 border: "#ddd6fe",
                 inputBg: "#ffffff",
                 text: "#4c1d95",
+                textSecondary: "#6d28d9",   // a bit softer than main text
                 primary: "#a78bfa",
                 primaryHover: "#8b5cf6",
                 accent: "#ddd6fe",
@@ -335,6 +352,7 @@ These classes come from TailwindCSS.
                 border: "#fed7aa",
                 inputBg: "#ffffff",
                 text: "#7c2d12",
+                textSecondary: "#9a3412",   // a bit softer than main text
                 primary: "#fb923c",
                 primaryHover: "#f97316",
                 accent: "#fed7aa",
@@ -349,6 +367,7 @@ These classes come from TailwindCSS.
                 border: "#fbcfe8",
                 inputBg: "#ffffff",
                 text: "#9d174d",
+                textSecondary: "#be185d",   // a bit softer than main text
                 primary: "#ec4899",
                 primaryHover: "#db2777",
                 accent: "#fbcfe8",
@@ -363,6 +382,7 @@ These classes come from TailwindCSS.
                 border: "#1f2937",
                 inputBg: "#020617",
                 text: "#e5e7eb",
+                textSecondary: "#9ca3af",   // a bit softer than main text
                 primary: "#3b82f6",
                 primaryHover: "#60a5fa",
                 accent: "#1d4ed8",
@@ -377,6 +397,7 @@ These classes come from TailwindCSS.
                 border: "#22c55e",
                 inputBg: "#000000",
                 text: "#22c55e",
+                textSecondary: "#4ade80",   // a bit softer than main text
                 primary: "#22c55e",
                 primaryHover: "#4ade80",
                 accent: "#16a34a",
@@ -394,6 +415,9 @@ These classes come from TailwindCSS.
             root.style.setProperty("--color-border", theme.border);
             root.style.setProperty("--color-input-bg", theme.inputBg);
             root.style.setProperty("--color-text", theme.text);
+            // the theme.text makes sure old themes 
+            // dont break if they dont define textSecondary (below)
+            root.style.setProperty("--color-text-secondary", theme.textSecondary || theme.text); 
             root.style.setProperty("--color-primary", theme.primary);
             root.style.setProperty("--color-primary-hover", theme.primaryHover);
             root.style.setProperty("--color-accent", theme.accent);

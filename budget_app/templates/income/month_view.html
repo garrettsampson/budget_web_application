@@ -28,7 +28,7 @@ If no entries exist, we show a friendly message.
 {% block content %}
 
 <!-- PAGE HEADER -->
-<h2 class="text-2xl font-bold mb-4">
+<h2 class="text-2xl font-bold mb-4" style="color: var(--color-text)">
   Income Summary for {{ month }}/{{ year }}
 </h2>
 
@@ -56,16 +56,20 @@ If no entries exist, we show a friendly message.
      The table contains:
        Week | Hourly | Hours | Gross | Net | Tax Paid
   #}
-  <table class="min-w-full bg-white shadow rounded-lg overflow-hidden">
-    <thead class="bg-gray-100">
+  <table class="min-w-full bg-white shadow rounded-lg overflow-hidden"
+  style="background-color: var(--color-card-bg);
+  border: 1px solid var(--color-border);">
+    <thead class="bg-gray-100"
+    style="background-color: var(--color-card-bg);
+    border: 1px solid var(--color-border);">
       <tr>
-        <th class="px-4 py-2 text-left text-sm font-semibold">Week</th>
-        <th class="px-4 py-2 text-left text-sm font-semibold">Hourly</th>
-        <th class="px-4 py-2 text-left text-sm font-semibold">Hours</th>
-        <th class="px-4 py-2 text-left text-sm font-semibold">Gross ($)</th>
-        <th class="px-4 py-2 text-left text-sm font-semibold">Net ($)</th>
-        <th class="px-4 py-2 text-left text-sm font-semibold">Tax Paid ($)</th>
-        <th class="px-4 py-2 text-left text-sm font-semibold">Actions</th>
+        <th class="px-4 py-2 text-left text-sm font-semibold" style="color: var(--color-text);">Week</th>
+        <th class="px-4 py-2 text-left text-sm font-semibold" style="color: var(--color-text);">Hourly</th>
+        <th class="px-4 py-2 text-left text-sm font-semibold" style="color: var(--color-text);">Hours</th>
+        <th class="px-4 py-2 text-left text-sm font-semibold" style="color: var(--color-text);">Gross ($)</th>
+        <th class="px-4 py-2 text-left text-sm font-semibold" style="color: var(--color-text);">Net ($)</th>
+        <th class="px-4 py-2 text-left text-sm font-semibold" style="color: var(--color-text);">Tax Paid ($)</th>
+        <th class="px-4 py-2 text-left text-sm font-semibold" style="color: var(--color-text);">Actions</th>
       </tr>
     </thead>
 
@@ -88,14 +92,14 @@ If no entries exist, we show a friendly message.
       #}
       {% for e in entries %}
       <tr class="border-t">
-        <td class="px-4 py-2 text-sm">{{ e.week_index }}</td>
-        <td class="px-4 py-2 text-sm">{{ "%.2f"|format(e.hourly_pay) }}</td>
-        <td class="px-4 py-2 text-sm">{{ "%.2f"|format(e.hours) }}</td>
-        <td class="px-4 py-2 text-sm">{{ "%.2f"|format(e.gross) }}</td>
-        <td class="px-4 py-2 text-sm">{{ "%.2f"|format(e.net) }}</td>
+        <td class="px-4 py-2 text-sm" style="color: var(--color-text-secondary);">{{ e.week_index }}</td>
+        <td class="px-4 py-2 text-sm" style="color: var(--color-text-secondary);">{{ "%.2f"|format(e.hourly_pay) }}</td>
+        <td class="px-4 py-2 text-sm" style="color: var(--color-text-secondary);">{{ "%.2f"|format(e.hours) }}</td>
+        <td class="px-4 py-2 text-sm" style="color: var(--color-text-secondary);">{{ "%.2f"|format(e.gross) }}</td>
+        <td class="px-4 py-2 text-sm" style="color: var(--color-text-secondary);">{{ "%.2f"|format(e.net) }}</td>
 
         <!-- Tax Paid = gross - net -->
-        <td class="px-4 py-2 text-sm">{{ "%.2f"|format(e.gross - e.net) }}</td>
+        <td class="px-4 py-2 text-sm" style="color: var(--color-text-secondary);">{{ "%.2f"|format(e.gross - e.net) }}</td>
         <td class="px-4 py-2 text-sm">
 
     <!-- 
@@ -134,13 +138,32 @@ If no entries exist, we show a friendly message.
 
      total_gross, total_net, total_tax are already precomputed numbers.
   #}
-  <div class="mt-6 bg-white shadow rounded-lg p-4">
-    <h3 class="text-xl font-semibold mb-2">Monthly Totals</h3>
+  <div class="mt-6 bg-white shadow rounded-lg p-4"
+  style="background-color: var(--color-card-bg);
+  border: 1px solid var(--color-border);">
+    <h3 class="text-xl font-semibold mb-2" style="color: var(--color-text);">Monthly Totals</h3>
 
     <ul class="space-y-1 text-sm">
-      <li><strong>Total Gross:</strong> {{ "%.2f"|format(total_gross) }}</li>
-      <li><strong>Total Net:</strong> {{ "%.2f"|format(total_net) }}</li>
-      <li><strong>Total Tax:</strong> {{ "%.2f"|format(total_tax) }}</li>
+        <li>
+            <strong style="color: var(--color-text);">Total Gross:</strong>
+            <span style="color: var(--color-text-secondary);">
+                {{ "%.2f"|format(total_gross) }}
+            </span>
+        </li>
+
+        <li>
+            <strong style="color: var(--color-text);">Total Net:</strong>
+            <span style="color: var(--color-text-secondary);">
+                {{ "%.2f"|format(total_net) }}
+            </span>
+        </li>
+
+        <li>
+            <strong style="color: var(--color-text);">Total Tax:</strong>
+            <span style="color: var(--color-text-secondary);">
+                {{ "%.2f"|format(total_tax) }}
+            </span>
+        </li>
     </ul>
   </div>
 
@@ -155,7 +178,7 @@ If no entries exist, we show a friendly message.
 
      It keeps the UI helpful and avoids blank pages.
   #}
-  <p class="text-gray-600">
+  <p style="color: var(--color-text-secondary);">
     No income entries recorded for this month yet.
   </p>
 
@@ -176,7 +199,7 @@ If no entries exist, we show a friendly message.
 #}
 <a
   href="{{ url_for('income_form') }}"
-  class="inline-block mt-6 bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2 rounded"
+  class="btn-primary inline-block mt-6"
 >
   Add another week
 </a>
@@ -184,7 +207,7 @@ If no entries exist, we show a friendly message.
 <!-- Secondary Button: Select Month to View -->
 <a
   href="{{ url_for('income_select_month') }}"
-  class="inline-block mt-3 ml-3 px-4 py-2 rounded border border-blue-600 text-blue-600 hover:bg-blue-50 font-semibold transition"
+  class="btn-secondary inline-block mt-3 ml-3"
 >
   Select Month to View
 </a>

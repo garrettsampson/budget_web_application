@@ -51,7 +51,7 @@
     font-bold -> Makes it bold
     mb-4 -> Adds margin bottom of size 4 for spacing
 -->
-<h1 class="text-3xl font-bold mb-4">Welcome to Your Budget App</h1>
+<h1 class="text-3xl font-bold mb-4" style="color: var(--color-text);">Welcome to Your Budget App</h1>
 
 <!-- 
   BASIC PAGE DESCRIPTION 
@@ -59,7 +59,7 @@
   This lets the user know the app is running and gives guidance.
   text-gray-700 -> Slightly gray text (less harsh than pure black)
 -->
-<p class="text-gray-700">
+<p class="mb-4" style="color: var(--color-text-secondary);">
   Your app is running correctly! Use the navigation bar to go to the Income section.
 </p>
 
@@ -79,9 +79,10 @@
 
   Clicking this will send the user to the route: /income
 -->
+  <!-- BUTTON: GO TO INCOME CALCULATOR -->
 <a 
-  href="/income" 
-  class="inline-block mt-4 bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded"
+  href="{{ url_for('income_form') }}" 
+  class="btn-primary inline-block mt-4"
 >
   Go to Income Calculator
 </a>
