@@ -440,6 +440,56 @@ These classes come from TailwindCSS.
             applyThemeVars(customThemeObj);
         };
 
+            // -------------------------------------------------------------
+            // Helper: get the currently active theme colors (object)
+            // -------------------------------------------------------------
+            // Used by the settings page to sync the color pickers.
+            window.getActiveThemeColors = function () {
+                const storedName = localStorage.getItem("themeName") || "pastel-blue";
+                const storedCustom = localStorage.getItem("customTheme");
+
+                if (storedName === "custom" && storedCustom) {
+                    try {
+                        return JSON.parse(storedCustom);
+                    } catch (e) {
+                        console.warn("Failed to parse customTheme JSON, falling back to default.");
+                    }
+                }
+
+                // Fallback to one of the built-in preset themes
+                return THEMES[storedName] || THEMES["pastel-blue"];
+            };
+
+            // -------------------------------------------------------------
+            // Helper: read all user-saved custom themes from localStorage
+            // -------------------------------------------------------------
+            // Stored as: { "My Theme Name": { ...colors... }, ... }
+            window.getSavedThemes = function () {
+                const raw = localStorage.getItem("savedThemes");
+                if (!raw) return {};
+                try {
+                    return JSON.parse(raw);
+                } catch (e) {
+                    console.warn("Failed to parse savedThemes JSON, starting fresh.");
+                    return {};
+                }
+            };
+
+            // Save / overwrite a named custom theme
+            window.saveThemeByName = function (name, themeObj) {
+                const themes = window.getSavedThemes();
+                themes[name] = themeObj;
+                localStorage.setItem("savedThemes", JSON.stringify(themes));
+            };
+
+            // Delete a named custom theme
+            window.deleteThemeByName = function (name) {
+                const themes = window.getSavedThemes();
+                delete themes[name];
+                localStorage.setItem("savedThemes", JSON.stringify(themes));
+            };
+
+
         document.addEventListener("DOMContentLoaded", () => {
             loadThemeFromStorage();
         });
