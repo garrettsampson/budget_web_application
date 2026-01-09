@@ -14,7 +14,8 @@ Flask-SQLAlchemy.
 """
 
 from flask_sqlalchemy import SQLAlchemy
-from datetime import datetime   # Needed for timestamp defaults
+from datetime import datetime, date   # Needed for timestamp defaults
+#from models import db
 
 # -------------------------------------------------------------------
 # db = SQLAlchemy()
@@ -201,20 +202,27 @@ class IncomeWeek(db.Model):
 # EXPENSE MODEL
 # ===================================================================
 class Expense(db.Model):
+    """
+    Represents ONE expense row inside a specific month/year for a user.
+
+    This matches your current spreadsheet UI:
+      - month/year-based
+      - item + cost per row
+      - you save the whole table at once
+    """
     id = db.Column(db.Integer, primary_key=True)
 
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
+    # Link expense rows to the User table.
+    # IMPORTANT: Your User model becomes table name "user" by default.
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
 
     year = db.Column(db.Integer, nullable=False)
     month = db.Column(db.Integer, nullable=False)
 
-    # What the user types (like "Groceries")
     item = db.Column(db.String(255), nullable=False)
-
-    # What the user types (like 50.00)
-    cost = db.Column(db.Float, nullable=False)
+    cost = db.Column(db.Float, nullable=False, default=0.0)
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-    user = db.relationship('User', backref=db.backref('expenses', lazy=True))
-
+    # Optional relationship convenience (matches how IncomeWeek does it)
+    user = db.relationship("User", backref=db.backref("expenses", lazy=True))

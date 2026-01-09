@@ -28,6 +28,8 @@ from config import Config
 # Used for automatically filling the form with today's year/month
 from datetime import datetime
 
+from models import db, Expense
+
 
 
 
@@ -199,27 +201,90 @@ def create_app():
         # 2) If user submits expenses
         # --------------------------
         if request.method == "POST":
-            # We will receive multiple rows as lists
+            """
+            When the user clicks "Save Expenses", the browser submits ALL rows.
+
+            Because your inputs are named item[] and cost[], Flask gives us two lists:
+                items = ["Rent", "Groceries", "", ...]
+                costs = ["1200", "250.40", "", ...]
+
+            The saving strategy you’re using is:
+            1) Delete the month’s existing rows
+            2) Rebuild them from what the user submitted
+
+            This is simple and predictable, and it matches a spreadsheet-style UI.
+            """
+
+            from flask import flash
+
             items = request.form.getlist("item[]")
             costs = request.form.getlist("cost[]")
 
-            # Clear old expenses for that month (simple + predictable)
-            Expense.query.filter_by(user_id=user.id, year=year, month=month).delete()
+            # -------------------------------
+            # Validation rules we will enforce
+            # -------------------------------
+            # Rule 1: blank row = ignore
+            # Rule 2: item but no cost = warning + ignore
+            # Rule 3: cost but no item = warning + ignore
+            # Rule 4: cost must be a valid number >= 0
+            # Rule 5: we store costs rounded to 2 decimals
 
-            # Re-add everything that has real values
-            for item, cost in zip(items, costs):
+            cleaned_rows = []
+            warnings = 0
+
+            for idx, (item, cost) in enumerate(zip(items, costs), start=1):
                 item = (item or "").strip()
                 cost = (cost or "").strip()
 
-                # Skip blank rows
-                if not item or not cost:
+                # Completely blank row → skip silently
+                if not item and not cost:
                     continue
 
+                # If user typed an item but forgot cost
+                if item and not cost:
+                    warnings += 1
+                    continue
+
+                # If user typed a cost but forgot item
+                if cost and not item:
+                    warnings += 1
+                    continue
+
+                # Now we have both fields → validate cost
                 try:
                     cost_value = float(cost)
                 except ValueError:
-                    cost_value = 0.0
+                    warnings += 1
+                    continue
 
+                if cost_value < 0:
+                    warnings += 1
+                    continue
+
+                # Round to cents so you don’t get float garbage like 12.999999
+                cost_value = round(cost_value, 2)
+
+                cleaned_rows.append((item, cost_value))
+
+            # If everything was empty, still allow saving (it just clears the month)
+            # But we’ll give a helpful message.
+            if not cleaned_rows:
+                flash("No valid expense rows found. Month cleared (if it had any saved rows).", "warning")
+
+            # Warn the user if we skipped rows due to invalid input
+            if warnings > 0:
+                flash(f"Skipped {warnings} row(s) because they were incomplete or invalid.", "warning")
+            else:
+                flash("Expenses saved successfully.", "success")
+
+            # -------------------------------
+            # Now persist to the database
+            # -------------------------------
+            # Clear old expenses for that month
+            Expense.query.filter_by(user_id=user.id, year=year, month=month).delete()
+
+            # Insert cleaned rows
+            for item, cost_value in cleaned_rows:
                 db.session.add(Expense(
                     user_id=user.id,
                     year=year,
@@ -229,7 +294,10 @@ def create_app():
                 ))
 
             db.session.commit()
+
+            # Redirect after POST (prevents re-submission if user refreshes)
             return redirect(url_for("expenses_month_view", year=year, month=month))
+
 
         # --------------------------
         # 3) GET: show page

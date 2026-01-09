@@ -10,6 +10,8 @@ Keeping configuration in a separate file is good practice because:
 """
 
 import os
+from models import db, Expense
+
 
 
 class Config:
