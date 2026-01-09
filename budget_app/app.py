@@ -162,7 +162,7 @@ def create_app():
         )
     
     # ==================================================================
-    # ROUTE: Redirect after selecting Month/Year for EXPENSES
+    # ROUTE: Expenses (Redirect after selecting Month/Year for EXPENSES)
     # ==================================================================
     @app.route("/expenses/view")
     def expenses_view_redirect():
@@ -178,7 +178,7 @@ def create_app():
         return redirect(url_for("expenses_month_view", year=year, month=month))
 
     # ==================================================================
-    # ROUTE: Monthly Expenses Summary
+    # ROUTE: Expenses (Monthly Expenses Summary)
     # ==================================================================
     @app.route("/expenses/<int:year>/<int:month>")
     def expenses_month_view(year, month):

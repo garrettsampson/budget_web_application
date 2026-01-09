@@ -1,0 +1,205 @@
+{#
+======================================================================================
+select_month.html — MONTH SELECTION PAGE
+======================================================================================
+
+Purpose:
+--------
+This page allows the user to pick a YEAR and a MONTH, then quickly jump
+to the correct income summary page.
+
+This is rendered by:
+    @app.route("/expenses/select")
+
+After submitting the form, it sends a GET request to:
+    /expenses/view?year=YYYY&month=MM
+
+Which redirects to:
+    /expenses/<year>/<month>
+
+======================================================================================
+#}
+
+{% extends "base.html" %}
+
+{% block content %}
+
+<style>
+    /* Circular buttons ("chips") for year and month options */
+    .year-chip,
+    .month-chip {
+        border-radius: 9999px; /* fully rounded pill shape */
+        padding: 0.35rem 0.9rem;
+        font-size: 0.875rem;
+        font-weight: 500;
+        border: 1px solid var(--color-border);
+        background-color: var(--color-card-bg);
+        color: var(--color-text);
+        white-space: nowrap;
+        cursor: pointer;
+        transition:
+            background-color 0.15s ease,
+            color 0.15s ease,
+            transform 0.1s ease,
+            border-color 0.15s ease;
+    }
+
+    .year-chip:hover,
+    .month-chip:hover {
+        border-color: var(--color-primary);
+    }
+
+    /* Selected state: uses your primary theme color */
+    .year-chip--active,
+    .month-chip--active {
+        background-color: var(--color-primary);
+        border-color: var(--color-primary);
+        color: #ffffff;
+        transform: translateY(-1px);
+    }
+
+    /* The horizontal year strip can scroll if there are many years */
+    #year-chip-container {
+        scrollbar-width: thin; /* Firefox */
+    }
+</style>
+<h2 class="text-2xl font-bold mb-4" style="color: var(--color-text);">Select Month to View Expenses</h2>
+
+<p class="mb-4" style="color: var(--color-text-secondary);">
+  Choose a year and month below to view your saved expenses.
+</p>
+
+<!-- ================================================================
+     FORM: Select year/month
+     - Sends data using GET to /expenses/view
+     - The backend then redirects to /expenses/<year>/<month>
+================================================================ -->
+<form action="{{ url_for('expenses_view_redirect') }}" method="GET" 
+      class="bg-white shadow rounded-lg p-6 space-y-4 max-w-lg" style="
+    background-color: var(--color-card-bg);
+    border: 1px solid var(--color-border);
+  ">
+
+        <!-- HIDDEN FIELDS THAT THE FORM ACTUALLY SUBMITS -->
+        <input type="hidden" id="year" name="year" value="{{ current_year }}">
+        <input type="hidden" id="month" name="month" value="{{ current_month }}">
+
+        <!-- YEAR SELECTOR (chip-style buttons) -->
+        <div class="mb-4">
+        <label class="block text-sm font-medium mb-2" style="color: var(--color-text);">
+            Year
+        </label>
+
+        <div id="year-chip-container" class="flex gap-2 overflow-x-auto py-1">
+            {# Show a range centered around the current year (e.g. 3 years back, 3 ahead) #}
+            {% for y in range(current_year - 3, current_year + 4) %}
+            <button
+                type="button"
+                class="year-chip {% if y == current_year %}year-chip--active{% endif %}"
+                data-year="{{ y }}"
+            >
+                {{ y }}
+            </button>
+            {% endfor %}
+        </div>
+        </div>
+
+        <!-- MONTH SELECTOR (Jan–Dec chips) -->
+        <div class="mb-4">
+        <label class="block text-sm font-medium mb-2" style="color: var(--color-text);">
+            Month
+        </label>
+
+        {# Short labels for display #}
+        {% set month_labels = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"] %}
+
+        <div id="month-chip-container" class="grid grid-cols-3 sm:grid-cols-6 gap-2">
+            {% for i in range(1, 13) %}
+            <button
+                type="button"
+                class="month-chip {% if i == current_month %}month-chip--active{% endif %}"
+                data-month="{{ i }}"
+            >
+                {{ month_labels[i-1] }}
+            </button>
+            {% endfor %}
+        </div>
+        </div>
+
+
+    <!-- SUBMIT -->
+    <div class="pt-4">
+        <button 
+            type="submit"
+            class="btn-primary inline-block mt-4">
+            View Summary
+        </button>
+    </div>
+
+</form>
+
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    // Hidden inputs that the form actually submits
+    const yearInput = document.getElementById("year");
+    const monthInput = document.getElementById("month");
+
+    // -------------------------------
+    // YEAR CHIPS
+    // -------------------------------
+    const yearChips = Array.from(document.querySelectorAll(".year-chip"));
+
+    yearChips.forEach((chip) => {
+      chip.addEventListener("click", () => {
+        // Remove "active" class from all chips
+        yearChips.forEach((c) => c.classList.remove("year-chip--active"));
+
+        // Mark this chip as active
+        chip.classList.add("year-chip--active");
+
+        // Update hidden year input
+        const selectedYear = chip.dataset.year;
+        yearInput.value = selectedYear;
+
+        // Keep the selected year visible / centered if horizontally scrolled
+        chip.scrollIntoView({
+          behavior: "smooth",
+          inline: "center",
+          block: "nearest",
+        });
+      });
+    });
+
+    // On first load, auto-scroll the CURRENT YEAR into view (the one with --active class)
+    const activeYearChip = document.querySelector(".year-chip--active");
+    if (activeYearChip) {
+      activeYearChip.scrollIntoView({
+        behavior: "smooth",
+        inline: "center",
+        block: "nearest",
+      });
+    }
+
+    // -------------------------------
+    // MONTH CHIPS
+    // -------------------------------
+    const monthChips = Array.from(document.querySelectorAll(".month-chip"));
+
+    monthChips.forEach((chip) => {
+      chip.addEventListener("click", () => {
+        // Remove active from all
+        monthChips.forEach((c) => c.classList.remove("month-chip--active"));
+
+        // Activate clicked one
+        chip.classList.add("month-chip--active");
+
+        // Update hidden month input
+        const selectedMonth = chip.dataset.month;
+        monthInput.value = selectedMonth;
+      });
+    });
+  });
+</script>
+
+
+{% endblock %}
