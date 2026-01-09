@@ -203,26 +203,30 @@ class IncomeWeek(db.Model):
 # ===================================================================
 class Expense(db.Model):
     """
-    Represents ONE expense row inside a specific month/year for a user.
+    ONE expense row inside a month/year for a user.
 
-    This matches your current spreadsheet UI:
-      - month/year-based
-      - item + cost per row
-      - you save the whole table at once
+    New structure:
+      - category: saved from dropdown (consistent for analytics)
+      - description: user's custom text (details)
+      - cost: money value
     """
+
     id = db.Column(db.Integer, primary_key=True)
 
-    # Link expense rows to the User table.
-    # IMPORTANT: Your User model becomes table name "user" by default.
     user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
 
     year = db.Column(db.Integer, nullable=False)
     month = db.Column(db.Integer, nullable=False)
 
-    item = db.Column(db.String(255), nullable=False)
+    # NEW: dropdown bucket
+    category = db.Column(db.String(64), nullable=True)
+
+    # NEW: free text details
+    description = db.Column(db.String(255), nullable=True)
+
     cost = db.Column(db.Float, nullable=False, default=0.0)
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-    # Optional relationship convenience (matches how IncomeWeek does it)
     user = db.relationship("User", backref=db.backref("expenses", lazy=True))
+

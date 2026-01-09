@@ -28,7 +28,6 @@ from config import Config
 # Used for automatically filling the form with today's year/month
 from datetime import datetime
 
-from models import db, Expense
 
 
 
@@ -204,53 +203,55 @@ def create_app():
             """
             When the user clicks "Save Expenses", the browser submits ALL rows.
 
-            Because your inputs are named item[] and cost[], Flask gives us two lists:
-                items = ["Rent", "Groceries", "", ...]
-                costs = ["1200", "250.40", "", ...]
+            IMPORTANT:
+            We now submit 3 parallel lists:
+              - category[]     (dropdown choice)
+              - description[]  (free-text details)
+              - cost[]         (money)
 
-            The saving strategy you’re using is:
-            1) Delete the month’s existing rows
-            2) Rebuild them from what the user submitted
+            Our save strategy (for now) is still:
+              1) Delete this month’s existing rows
+              2) Insert rows based on the current form submission
 
-            This is simple and predictable, and it matches a spreadsheet-style UI.
+            Later (when you add migrations and IDs per row), we can do true updates
+            without a delete/reinsert — but this is fine early-stage.
             """
 
             from flask import flash
 
-            items = request.form.getlist("item[]")
+            # Pull the three lists (same row index across lists)
+            categories = request.form.getlist("category[]")
+            descriptions = request.form.getlist("description[]")
             costs = request.form.getlist("cost[]")
-
-            # -------------------------------
-            # Validation rules we will enforce
-            # -------------------------------
-            # Rule 1: blank row = ignore
-            # Rule 2: item but no cost = warning + ignore
-            # Rule 3: cost but no item = warning + ignore
-            # Rule 4: cost must be a valid number >= 0
-            # Rule 5: we store costs rounded to 2 decimals
 
             cleaned_rows = []
             warnings = 0
 
-            for idx, (item, cost) in enumerate(zip(items, costs), start=1):
-                item = (item or "").strip()
+            # Zip all three together so row 1 stays row 1 across category/description/cost
+            for idx, (category, description, cost) in enumerate(zip(categories, descriptions, costs), start=1):
+                category = (category or "").strip()
+                description = (description or "").strip()
                 cost = (cost or "").strip()
 
+                # Normalize "Pick…" / blank dropdown → treat as empty
+                # (Your HTML uses value="" for Pick…)
+                if category == "":
+                    category = None
+
+                # Normalize blank description → empty
+                if description == "":
+                    description = None
+
                 # Completely blank row → skip silently
-                if not item and not cost:
+                if category is None and description is None and cost == "":
                     continue
 
-                # If user typed an item but forgot cost
-                if item and not cost:
+                # If they typed something but forgot cost → warning, skip
+                if cost == "":
                     warnings += 1
                     continue
 
-                # If user typed a cost but forgot item
-                if cost and not item:
-                    warnings += 1
-                    continue
-
-                # Now we have both fields → validate cost
+                # Validate cost
                 try:
                     cost_value = float(cost)
                 except ValueError:
@@ -261,44 +262,41 @@ def create_app():
                     warnings += 1
                     continue
 
-                # Round to cents so you don’t get float garbage like 12.999999
                 cost_value = round(cost_value, 2)
 
-                cleaned_rows.append((item, cost_value))
+                # If they provided cost but BOTH category and description are empty,
+                # we consider that invalid (otherwise analytics later is messy).
+                if category is None and description is None:
+                    warnings += 1
+                    continue
 
-            # If everything was empty, still allow saving (it just clears the month)
-            # But we’ll give a helpful message.
+                cleaned_rows.append((category, description, cost_value))
+
+            # Feedback messages
             if not cleaned_rows:
                 flash("No valid expense rows found. Month cleared (if it had any saved rows).", "warning")
-
-            # Warn the user if we skipped rows due to invalid input
-            if warnings > 0:
-                flash(f"Skipped {warnings} row(s) because they were incomplete or invalid.", "warning")
             else:
                 flash("Expenses saved successfully.", "success")
 
-            # -------------------------------
-            # Now persist to the database
-            # -------------------------------
-            # Clear old expenses for that month
+            if warnings > 0:
+                flash(f"Skipped {warnings} row(s) because they were incomplete or invalid.", "warning")
+
+            # Persist
             Expense.query.filter_by(user_id=user.id, year=year, month=month).delete()
 
-            # Insert cleaned rows
-            for item, cost_value in cleaned_rows:
+            for category, description, cost_value in cleaned_rows:
                 db.session.add(Expense(
                     user_id=user.id,
                     year=year,
                     month=month,
-                    item=item,
+                    category=category,
+                    description=description,
                     cost=cost_value
                 ))
 
             db.session.commit()
 
-            # Redirect after POST (prevents re-submission if user refreshes)
-            return redirect(url_for("expenses_month_view", year=year, month=month))
-
-
+            return redirect(url_for("expenses_month_view", year=year, month=month))   
         # --------------------------
         # 3) GET: show page
         # --------------------------
@@ -312,6 +310,94 @@ def create_app():
         total_spent = sum(x.cost for x in expenses)
         money_left = total_net - total_spent  # ✅ net is the base
 
+        # ------------------------------------------------------------
+        # Expense category dropdown choices (for the UI)
+        # ------------------------------------------------------------
+        # We are keeping this as a simple Python list for now.
+        # Later, we can move it into the database so each user can customize it.
+        expense_categories = [
+
+            # ----------------------------
+            # Housing & Utilities
+            # ----------------------------
+            "Electricity Bill",
+            "Homeowners/Renters Insurance",
+            "Internet",
+            "Rent/Mortgage",
+            "Utilities",
+            "Water Bill",
+
+            # ----------------------------
+            # Food & Dining
+            # ----------------------------
+            "Eating Out",
+            "Groceries",
+
+            # ----------------------------
+            # Transportation (Vehicles & Fuel)
+            # ----------------------------
+            "Car Insurance",
+            "Car Payment",
+            "Gas",
+            "Motorcycle Insurance",
+            "Motorcycle Payment",
+            "Transportation",
+
+            # ----------------------------
+            # Health & Medical
+            # ----------------------------
+            "Dental Insurance",
+            "Disability Insurance",
+            "Health Insurance",
+            "Long-term Care Insurance",
+            "Medical",
+            "Vision Insurance",
+
+            # ----------------------------
+            # Insurance (Non-Health)
+            # ----------------------------
+            "Liability Insurance",
+            "Life Insurance",
+
+            # ----------------------------
+            # Pets
+            # ----------------------------
+            "Pet Care",
+            "Pet Food",
+            "Pet Insurance",
+            "Pet Surgery",
+
+            # ----------------------------
+            # Personal & Lifestyle
+            # ----------------------------
+            "Clothing",
+            "Entertainment",
+            "Gym Membership",
+            "Subscriptions",
+
+            # ----------------------------
+            # Education & Childcare
+            # ----------------------------
+            "Childcare",
+            "School",
+            "Student Loans",
+
+            # ----------------------------
+            # Debt & Financial Obligations
+            # ----------------------------
+            "Credit Card Debt",
+            "Credit Card Payments",
+            "Debt",
+            "Loans",
+
+            # ----------------------------
+            # Miscellaneous
+            # ----------------------------
+            "Other",
+        ]
+
+
+
         return render_template(
             "expenses/month_view.html",
             year=year,
@@ -320,7 +406,8 @@ def create_app():
             total_net=total_net,
             expenses=expenses,
             total_spent=total_spent,
-            money_left=money_left
+            money_left=money_left,
+            expense_categories=expense_categories,
         )
 
                           
