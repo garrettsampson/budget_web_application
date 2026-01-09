@@ -1,0 +1,346 @@
+{# ============================================================================
+   templates/expenses/month_view.html
+
+   PURPOSE
+   -------
+   This page is the "Expenses for a Month" spreadsheet-like editor.
+
+   It shows:
+   - Total Gross (display only)
+   - Total Net   (this is the amount we subtract expenses from)
+   - A table of expense rows: Item | Cost
+   - Money Spent
+   - Money Left = total_net - total_spent
+
+   It also supports:
+   - Starting with ~7 rows minimum (if fewer saved, show blank rows)
+   - "Add Expense" button (adds new rows on the fly with JavaScript)
+
+   IMPORTANT FORM NAME RULE
+   ------------------------
+   The inputs are named:
+     item[]  and  cost[]
+   so Flask can read them like:
+     items = request.form.getlist("item[]")
+     costs = request.form.getlist("cost[]")
+
+   THEMING
+   -------
+   This file uses your theme variables:
+     --color-text, --color-text-secondary, --color-card-bg, --color-border,
+     --color-input-bg, --color-primary, --color-primary-hover
+============================================================================ #}
+
+{% extends "base.html" %}
+{% block content %}
+
+<!-- PAGE TITLE -->
+<h2 class="text-2xl font-bold mb-4" style="color: var(--color-text);">
+  Expenses for {{ month }}/{{ year }}
+</h2>
+
+<!-- INCOME SUMMARY CARD (Gross + Net) -->
+<div class="shadow rounded-lg p-6 mb-6"
+     style="background-color: var(--color-card-bg); border: 1px solid var(--color-border);">
+  <h3 class="text-xl font-semibold mb-2" style="color: var(--color-text);">
+    Income for this Month
+  </h3>
+
+  <p class="text-sm mb-3" style="color: var(--color-text-secondary);">
+    Gross is shown for reference. Net is what we subtract expenses from.
+  </p>
+
+  <ul class="space-y-1 text-sm">
+    <li>
+      <strong style="color: var(--color-text);">Total Gross:</strong>
+      <span style="color: var(--color-text-secondary);">
+        {{ "%.2f"|format(total_gross) }}
+      </span>
+    </li>
+    <li>
+      <strong style="color: var(--color-text);">Total Net:</strong>
+      <span style="color: var(--color-text-secondary);">
+        {{ "%.2f"|format(total_net) }}
+      </span>
+    </li>
+  </ul>
+</div>
+
+<!-- EXPENSES EDITOR CARD -->
+<div class="shadow rounded-lg p-6"
+     style="background-color: var(--color-card-bg); border: 1px solid var(--color-border);">
+
+  <div class="flex items-center justify-between mb-4">
+    <h3 class="text-xl font-semibold" style="color: var(--color-text);">
+      Monthly Expenses (Money Out)
+    </h3>
+
+    <!-- Add Expense button (JS will append a new row) -->
+    <button type="button" id="add-expense-btn" class="btn-secondary">
+      Add Expense
+    </button>
+  </div>
+
+  <p class="text-sm mb-4" style="color: var(--color-text-secondary);">
+    Add expense names and costs. Press <strong>Save Expenses</strong> when finished.
+  </p>
+
+  <!-- FORM: submits all expense rows at once -->
+  <form method="POST">
+    <div class="overflow-x-auto">
+      <table class="min-w-full rounded-lg overflow-hidden"
+             style="border: 1px solid var(--color-border);">
+
+        <!-- TABLE HEADER -->
+        <thead style="background-color: var(--color-card-bg);">
+          <tr style="border-bottom: 1px solid var(--color-border);">
+            <th class="px-4 py-3 text-left text-sm font-semibold"
+                style="color: var(--color-text);">
+              Item
+            </th>
+            <th class="px-4 py-3 text-left text-sm font-semibold"
+                style="color: var(--color-text); width: 160px;">
+              Cost ($)
+            </th>
+            <th class="px-4 py-3 text-left text-sm font-semibold"
+                style="color: var(--color-text); width: 110px;">
+              Row
+            </th>
+          </tr>
+        </thead>
+
+        <!-- TABLE BODY -->
+        <tbody id="expenses-body">
+          {# ------------------------------------------------------------
+             1) Render all saved expense rows first
+             ------------------------------------------------------------ #}
+          {% for e in expenses %}
+          <tr style="border-bottom: 1px solid var(--color-border);">
+            <td class="px-4 py-2">
+              <input
+                type="text"
+                name="item[]"
+                value="{{ e.item }}"
+                placeholder="e.g., Groceries"
+                class="w-full rounded px-3 py-2"
+                style="background-color: var(--color-input-bg);
+                       border: 1px solid var(--color-border);
+                       color: var(--color-text);"
+              >
+            </td>
+
+            <td class="px-4 py-2">
+              <input
+                type="number"
+                name="cost[]"
+                value="{{ '%.2f'|format(e.cost) }}"
+                step="0.01"
+                min="0"
+                placeholder="0.00"
+                class="w-full rounded px-3 py-2"
+                style="background-color: var(--color-input-bg);
+                       border: 1px solid var(--color-border);
+                       color: var(--color-text);"
+              >
+            </td>
+
+            <td class="px-4 py-2">
+              <!-- Optional: remove row (only removes from the page; save to persist) -->
+              <button type="button"
+                      class="text-sm font-semibold hover:underline"
+                      style="color: var(--color-error);"
+                      onclick="removeExpenseRow(this)">
+                Remove
+              </button>
+            </td>
+          </tr>
+          {% endfor %}
+
+          {# ------------------------------------------------------------
+             2) Add blank rows until we have at least 7 total rows visible
+                - If you already have 10 saved expenses, blanks becomes 0
+             ------------------------------------------------------------ #}
+          {% set needed_rows = 7 %}
+          {% set existing_count = expenses|length %}
+          {% set blanks = needed_rows - existing_count %}
+          {% if blanks < 0 %}{% set blanks = 0 %}{% endif %}
+
+          {% for _ in range(blanks) %}
+          <tr style="border-bottom: 1px solid var(--color-border);">
+            <td class="px-4 py-2">
+              <input
+                type="text"
+                name="item[]"
+                value=""
+                placeholder="e.g., Eating Out"
+                class="w-full rounded px-3 py-2"
+                style="background-color: var(--color-input-bg);
+                       border: 1px solid var(--color-border);
+                       color: var(--color-text);"
+              >
+            </td>
+
+            <td class="px-4 py-2">
+              <input
+                type="number"
+                name="cost[]"
+                value=""
+                step="0.01"
+                min="0"
+                placeholder="0.00"
+                class="w-full rounded px-3 py-2"
+                style="background-color: var(--color-input-bg);
+                       border: 1px solid var(--color-border);
+                       color: var(--color-text);"
+              >
+            </td>
+
+            <td class="px-4 py-2">
+              <button type="button"
+                      class="text-sm font-semibold hover:underline"
+                      style="color: var(--color-error);"
+                      onclick="removeExpenseRow(this)">
+                Remove
+              </button>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <!-- TOTALS (from backend) -->
+    <div class="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
+
+      <!-- MONEY SPENT -->
+      <div class="rounded-lg p-4"
+           style="background-color: var(--color-card-bg); border: 1px solid var(--color-border);">
+        <div class="text-sm" style="color: var(--color-text-secondary);">Money Spent</div>
+        <div class="text-2xl font-bold" style="color: var(--color-text);">
+          ${{ "%.2f"|format(total_spent) }}
+        </div>
+      </div>
+
+      <!-- MONEY LEFT -->
+      <div class="rounded-lg p-4"
+           style="background-color: var(--color-card-bg); border: 1px solid var(--color-border);">
+        <div class="text-sm" style="color: var(--color-text-secondary);">Money Left (Net − Spent)</div>
+        <div class="text-2xl font-bold" style="color: var(--color-text);">
+          ${{ "%.2f"|format(money_left) }}
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ACTION BUTTONS -->
+    <div class="pt-6 flex flex-wrap gap-3">
+      <button type="submit" class="btn-primary">
+        Save Expenses
+      </button>
+
+      <a href="{{ url_for('expenses_select_month') }}" class="btn-secondary inline-block">
+        Select Different Month
+      </a>
+    </div>
+
+  </form>
+</div>
+
+<!-- ============================================================
+     JAVASCRIPT (Add Expense button + row remove)
+     ============================================================ -->
+<script>
+  // ------------------------------------------------------------
+  // removeExpenseRow(button)
+  // ------------------------------------------------------------
+  // This removes a row from the table visually.
+  // IMPORTANT: It does NOT delete from the database until you click "Save Expenses",
+  // because your backend rebuilds the month’s expenses from the submitted rows.
+  function removeExpenseRow(buttonEl) {
+    const row = buttonEl.closest("tr");
+    if (row) row.remove();
+  }
+
+  // ------------------------------------------------------------
+  // Add Expense Row logic
+  // ------------------------------------------------------------
+  document.addEventListener("DOMContentLoaded", () => {
+    const addBtn = document.getElementById("add-expense-btn");
+    const tbody = document.getElementById("expenses-body");
+
+    // Build and append one new <tr> with the two inputs (item[] and cost[])
+    function addExpenseRow() {
+      const tr = document.createElement("tr");
+      tr.style.borderBottom = "1px solid var(--color-border)";
+
+      // Item cell
+      const tdItem = document.createElement("td");
+      tdItem.className = "px-4 py-2";
+      tdItem.innerHTML = `
+        <input
+          type="text"
+          name="item[]"
+          value=""
+          placeholder="e.g., Pet Food"
+          class="w-full rounded px-3 py-2"
+          style="
+            background-color: var(--color-input-bg);
+            border: 1px solid var(--color-border);
+            color: var(--color-text);
+          "
+        >
+      `;
+
+      // Cost cell
+      const tdCost = document.createElement("td");
+      tdCost.className = "px-4 py-2";
+      tdCost.innerHTML = `
+        <input
+          type="number"
+          name="cost[]"
+          value=""
+          step="0.01"
+          min="0"
+          placeholder="0.00"
+          class="w-full rounded px-3 py-2"
+          style="
+            background-color: var(--color-input-bg);
+            border: 1px solid var(--color-border);
+            color: var(--color-text);
+          "
+        >
+      `;
+
+      // Remove cell
+      const tdRemove = document.createElement("td");
+      tdRemove.className = "px-4 py-2";
+      tdRemove.innerHTML = `
+        <button type="button"
+                class="text-sm font-semibold hover:underline"
+                style="color: var(--color-error);">
+          Remove
+        </button>
+      `;
+
+      // Wire up remove button
+      tdRemove.querySelector("button").addEventListener("click", () => {
+        tr.remove();
+      });
+
+      // Append the 3 cells into the row
+      tr.appendChild(tdItem);
+      tr.appendChild(tdCost);
+      tr.appendChild(tdRemove);
+
+      // Append row into table body
+      tbody.appendChild(tr);
+    }
+
+    // When the user clicks "Add Expense", add a new row
+    if (addBtn) {
+      addBtn.addEventListener("click", addExpenseRow);
+    }
+  });
+</script>
+
+{% endblock %}

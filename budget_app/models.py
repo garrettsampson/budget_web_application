@@ -203,14 +203,18 @@ class IncomeWeek(db.Model):
 class Expense(db.Model):
     id = db.Column(db.Integer, primary_key=True)
 
-    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=False)
 
     year = db.Column(db.Integer, nullable=False)
     month = db.Column(db.Integer, nullable=False)
 
-    name = db.Column(db.String(120), nullable=False)
-    amount = db.Column(db.Float, nullable=False, default=0.0)
+    # What the user types (like "Groceries")
+    item = db.Column(db.String(255), nullable=False)
+
+    # What the user types (like 50.00)
+    cost = db.Column(db.Float, nullable=False)
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-    user = db.relationship("User", backref=db.backref("expenses", lazy=True))
+    user = db.relationship('User', backref=db.backref('expenses', lazy=True))
+

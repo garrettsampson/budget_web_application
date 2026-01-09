@@ -20,7 +20,7 @@ High-Level Flow of This File:
 from flask import Flask, render_template, request, redirect, url_for
 
 # Import your database models
-from models import db, User, IncomeWeek
+from models import db, User, IncomeWeek, Expense
 
 # Import configuration settings (DB path, secret key, etc.)
 from config import Config
@@ -180,30 +180,69 @@ def create_app():
     # ==================================================================
     # ROUTE: Expenses (Monthly Expenses Summary)
     # ==================================================================
-    @app.route("/expenses/<int:year>/<int:month>")
+    @app.route("/expenses/<int:year>/<int:month>", methods=["GET", "POST"])
     def expenses_month_view(year, month):
         user = get_current_user()
 
-        # 1) Pull income entries for that month
+        # --------------------------
+        # 1) Pull income totals FIRST
+        # --------------------------
         income_entries = (
             IncomeWeek.query
             .filter_by(user_id=user.id, year=year, month=month)
             .all()
         )
-
         total_gross = sum(e.gross for e in income_entries)
         total_net = sum(e.net for e in income_entries)
 
-        # 2) Pull expenses for that month
+        # --------------------------
+        # 2) If user submits expenses
+        # --------------------------
+        if request.method == "POST":
+            # We will receive multiple rows as lists
+            items = request.form.getlist("item[]")
+            costs = request.form.getlist("cost[]")
+
+            # Clear old expenses for that month (simple + predictable)
+            Expense.query.filter_by(user_id=user.id, year=year, month=month).delete()
+
+            # Re-add everything that has real values
+            for item, cost in zip(items, costs):
+                item = (item or "").strip()
+                cost = (cost or "").strip()
+
+                # Skip blank rows
+                if not item or not cost:
+                    continue
+
+                try:
+                    cost_value = float(cost)
+                except ValueError:
+                    cost_value = 0.0
+
+                db.session.add(Expense(
+                    user_id=user.id,
+                    year=year,
+                    month=month,
+                    item=item,
+                    cost=cost_value
+                ))
+
+            db.session.commit()
+            return redirect(url_for("expenses_month_view", year=year, month=month))
+
+        # --------------------------
+        # 3) GET: show page
+        # --------------------------
         expenses = (
             Expense.query
             .filter_by(user_id=user.id, year=year, month=month)
-            .order_by(Expense.created_at.asc())
+            .order_by(Expense.id)
             .all()
         )
 
-        money_spent = sum(x.amount for x in expenses)
-        money_left = total_net - money_spent
+        total_spent = sum(x.cost for x in expenses)
+        money_left = total_net - total_spent  # ✅ net is the base
 
         return render_template(
             "expenses/month_view.html",
@@ -212,9 +251,10 @@ def create_app():
             total_gross=total_gross,
             total_net=total_net,
             expenses=expenses,
-            money_spent=money_spent,
-            money_left=money_left,
+            total_spent=total_spent,
+            money_left=money_left
         )
+
                           
 
     
