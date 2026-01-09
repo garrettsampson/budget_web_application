@@ -1,1 +1,20 @@
 Application Test Browser: http://127.0.0.1:5000/
+
+
+When changing model.py:
+- do not delete the DB
+- instead:
+    - run (in terminal)
+        - flask db migrate -m "(Describe what changed)"
+    - then run (in terminal)
+        - flask db upgrade
+
+- if you get an error:
+    - Error A "Could not locate a Flask application"
+        - open terminal and run
+            - set FLASK_APP=app.py
+            - set FLASK_ENV=development
+    - Error B "No module named flask_migrate"
+        - activate venv
+        - open terminal and run 
+            - pip install Flask-Migrate

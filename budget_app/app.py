@@ -18,6 +18,7 @@ High-Level Flow of This File:
 # Import Flask and helpers
 # --------------------------
 from flask import Flask, render_template, request, redirect, url_for
+from flask_migrate import Migrate
 
 # Import your database models
 from models import db, User, IncomeWeek, Expense
@@ -43,6 +44,8 @@ def create_app():
 
     # Connect SQLAlchemy "db" to this Flask app
     db.init_app(app)
+    # Hook Alembic migrations to this Flask app + db
+    migrate = Migrate(app, db)
 
     # Create tables + default user if needed
     with app.app_context():

@@ -230,3 +230,5 @@ class Expense(db.Model):
 
     user = db.relationship("User", backref=db.backref("expenses", lazy=True))
 
+    note = db.Column(db.String(50), nullable=True)
+
