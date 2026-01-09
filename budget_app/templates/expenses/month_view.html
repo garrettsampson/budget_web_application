@@ -217,7 +217,7 @@
            style="background-color: var(--color-card-bg); border: 1px solid var(--color-border);">
         <div class="text-sm" style="color: var(--color-text-secondary);">Money Spent</div>
         <div class="text-2xl font-bold" style="color: var(--color-text);">
-          ${{ "%.2f"|format(total_spent) }}
+          $<span id="money-spent">{{ "%.2f"|format(total_spent) }}</span>
         </div>
       </div>
 
@@ -226,7 +226,7 @@
            style="background-color: var(--color-card-bg); border: 1px solid var(--color-border);">
         <div class="text-sm" style="color: var(--color-text-secondary);">Money Left (Net − Spent)</div>
         <div class="text-2xl font-bold" style="color: var(--color-text);">
-          ${{ "%.2f"|format(money_left) }}
+          $<span id="money-left">{{ "%.2f"|format(money_left) }}</span>
         </div>
       </div>
 
@@ -250,25 +250,117 @@
      JAVASCRIPT (Add Expense button + row remove)
      ============================================================ -->
 <script>
-  // ------------------------------------------------------------
-  // removeExpenseRow(button)
-  // ------------------------------------------------------------
-  // This removes a row from the table visually.
-  // IMPORTANT: It does NOT delete from the database until you click "Save Expenses",
-  // because your backend rebuilds the month’s expenses from the submitted rows.
+  // ============================================================
+  // 1) REMOVE ROW (existing rows)
+  // ============================================================
+  // This function is used by the inline HTML:
+  //   onclick="removeExpenseRow(this)"
+  //
+  // It removes the <tr> visually and then updates totals instantly.
   function removeExpenseRow(buttonEl) {
     const row = buttonEl.closest("tr");
     if (row) row.remove();
+
+    // After removing a row, recompute totals so Money Spent/Left updates instantly
+    updateExpenseTotals();
   }
 
-  // ------------------------------------------------------------
-  // Add Expense Row logic
-  // ------------------------------------------------------------
+  // ============================================================
+  // 2) LIVE TOTALS CALCULATION (Money Spent + Money Left)
+  // ============================================================
+
+  // This comes from Flask. We use it to compute:
+  //   money_left = TOTAL_NET - total_spent
+  const TOTAL_NET = {{ total_net|tojson }};
+
+  // Format number into a friendly money string: 1234.5 -> "1,234.50"
+  function formatMoney(value) {
+    const num = Number(value) || 0;
+    return num.toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    });
+  }
+
+  // Safely parse a cost input:
+  // - Empty -> 0
+  // - Invalid -> 0
+  function parseCost(value) {
+    const cleaned = (value || "").toString().trim();
+    if (!cleaned) return 0;
+
+    const n = Number(cleaned);
+    if (!Number.isFinite(n)) return 0;
+
+    return n;
+  }
+
+  // Sum ALL cost[] inputs currently on the page and update the totals UI.
+  function updateExpenseTotals() {
+    const tbody = document.getElementById("expenses-body");
+    if (!tbody) return;
+
+    const costInputs = tbody.querySelectorAll('input[name="cost[]"]');
+
+    let totalSpent = 0;
+
+    costInputs.forEach((input) => {
+      const cost = parseCost(input.value);
+
+      // You already use min="0" in HTML.
+      // This extra check prevents negatives from affecting totals if a browser allows it.
+      if (cost >= 0) totalSpent += cost;
+    });
+
+    // Round to cents for stable display
+    totalSpent = Math.round(totalSpent * 100) / 100;
+
+    const moneyLeft = Math.round((TOTAL_NET - totalSpent) * 100) / 100;
+
+    const spentEl = document.getElementById("money-spent");
+    const leftEl = document.getElementById("money-left");
+
+    if (spentEl) spentEl.textContent = formatMoney(totalSpent);
+    if (leftEl) leftEl.textContent = formatMoney(moneyLeft);
+  }
+
+  // ============================================================
+  // 3) PAGE LOAD + EVENT HOOKS (THIS IS THE PART YOU DIDN'T GET)
+  // ============================================================
+  // We need to CALL updateExpenseTotals() automatically:
+  //   - once when the page loads
+  //   - every time user types in cost fields (even new rows)
+  //   - after adding/removing rows
   document.addEventListener("DOMContentLoaded", () => {
     const addBtn = document.getElementById("add-expense-btn");
     const tbody = document.getElementById("expenses-body");
 
-    // Build and append one new <tr> with the two inputs (item[] and cost[])
+    // ------------------------------------------------------------
+    // 3A) Run totals once immediately so displayed totals always match inputs
+    // ------------------------------------------------------------
+    updateExpenseTotals();
+
+    // ------------------------------------------------------------
+    // 3B) Event delegation for LIVE typing updates
+    // ------------------------------------------------------------
+    // We listen for "input" events on the tbody (table body).
+    // That catches typing in ANY cost[] field inside it,
+    // including rows added later with JavaScript.
+    if (tbody) {
+      tbody.addEventListener("input", (event) => {
+        const target = event.target;
+
+        // Only recalc when user edits a cost input.
+        // (Typing in item[] does not affect totals.)
+        if (target && target.matches('input[name="cost[]"]')) {
+          updateExpenseTotals();
+        }
+      });
+    }
+
+    // ------------------------------------------------------------
+    // 3C) Build and append one new row when user clicks Add Expense
+    // ------------------------------------------------------------
     function addExpenseRow() {
       const tr = document.createElement("tr");
       tr.style.borderBottom = "1px solid var(--color-border)";
@@ -322,25 +414,32 @@
         </button>
       `;
 
-      // Wire up remove button
+      // Wire up remove button:
+      // IMPORTANT: We must call updateExpenseTotals() after removing,
+      // otherwise the totals would be wrong until user types again.
       tdRemove.querySelector("button").addEventListener("click", () => {
         tr.remove();
+        updateExpenseTotals();
       });
 
-      // Append the 3 cells into the row
+      // Append cells into row, row into table body
       tr.appendChild(tdItem);
       tr.appendChild(tdCost);
       tr.appendChild(tdRemove);
 
-      // Append row into table body
-      tbody.appendChild(tr);
+      if (tbody) tbody.appendChild(tr);
+
+      // After adding a row, totals should update immediately.
+      // (It won't change numbers yet because cost is blank, but it keeps behavior consistent.)
+      updateExpenseTotals();
     }
 
-    // When the user clicks "Add Expense", add a new row
+    // Hook up the button click
     if (addBtn) {
       addBtn.addEventListener("click", addExpenseRow);
     }
   });
 </script>
+
 
 {% endblock %}
