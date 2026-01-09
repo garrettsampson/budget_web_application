@@ -150,6 +150,75 @@ def create_app():
         )
     
     # ==================================================================
+    # ROUTE: EXPENSES
+    # ==================================================================
+    @app.route("/expenses/select")
+    def expenses_select_month():
+        today = datetime.today()
+        return render_template(
+            "expenses/select_month.html",
+            current_year=today.year,
+            current_month=today.month,
+        )
+    
+    # ==================================================================
+    # ROUTE: Redirect after selecting Month/Year for EXPENSES
+    # ==================================================================
+    @app.route("/expenses/view")
+    def expenses_view_redirect():
+        from flask import flash
+
+        year = request.args.get("year")
+        month = request.args.get("month")
+
+        if not year or not month:
+            flash("Please select both a year and month.", "error")
+            return redirect(url_for("expenses_select_month"))
+
+        return redirect(url_for("expenses_month_view", year=year, month=month))
+
+    # ==================================================================
+    # ROUTE: Monthly Expenses Summary
+    # ==================================================================
+    @app.route("/expenses/<int:year>/<int:month>")
+    def expenses_month_view(year, month):
+        user = get_current_user()
+
+        # 1) Pull income entries for that month
+        income_entries = (
+            IncomeWeek.query
+            .filter_by(user_id=user.id, year=year, month=month)
+            .all()
+        )
+
+        total_gross = sum(e.gross for e in income_entries)
+        total_net = sum(e.net for e in income_entries)
+
+        # 2) Pull expenses for that month
+        expenses = (
+            Expense.query
+            .filter_by(user_id=user.id, year=year, month=month)
+            .order_by(Expense.created_at.asc())
+            .all()
+        )
+
+        money_spent = sum(x.amount for x in expenses)
+        money_left = total_net - money_spent
+
+        return render_template(
+            "expenses/month_view.html",
+            year=year,
+            month=month,
+            total_gross=total_gross,
+            total_net=total_net,
+            expenses=expenses,
+            money_spent=money_spent,
+            money_left=money_left,
+        )
+                          
+
+    
+    # ==================================================================
     # ROUTE: Settings (Theme selection etc.)
     # ==================================================================
     @app.route("/settings")

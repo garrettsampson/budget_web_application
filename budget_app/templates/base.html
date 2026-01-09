@@ -183,6 +183,7 @@ These classes come from TailwindCSS.
             <!-- LEFT: Navigation links -->
             <div class="flex gap-6 items-center">
                 <a href="{{ url_for('home') }}" class="nav-link">Home</a>
+                
 
                 <!-- INCOME DROPDOWN -->
                 <div x-data="{ open: false }" class="relative">
@@ -220,7 +221,11 @@ These classes come from TailwindCSS.
                         </a>
                     </div>
                 </div>
+                
+                <!-- NEW: EXPENSES TAB -->
+                <a href="{{ url_for('expenses_select_month') }}" class="nav-link">Expenses</a>
 
+                
                 <a href="/savings" class="nav-link">Savings</a>
                 <a href="/yearly" class="nav-link">Yearly</a>
                 <a href="/goals" class="nav-link">Goals</a>

@@ -195,3 +195,22 @@ class IncomeWeek(db.Model):
     #       - Means SQLAlchemy loads related rows only when first accessed.
     #       - Prevents unnecessary database queries.
     user = db.relationship('User', backref=db.backref('income_weeks', lazy=True))
+
+
+# ===================================================================
+# EXPENSE MODEL
+# ===================================================================
+class Expense(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+
+    year = db.Column(db.Integer, nullable=False)
+    month = db.Column(db.Integer, nullable=False)
+
+    name = db.Column(db.String(120), nullable=False)
+    amount = db.Column(db.Float, nullable=False, default=0.0)
+
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    user = db.relationship("User", backref=db.backref("expenses", lazy=True))
