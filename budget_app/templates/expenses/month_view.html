@@ -132,6 +132,8 @@
              ------------------------------------------------------------ #}
           {% for e in expenses %}
           <tr style="border-bottom: 1px solid var(--color-border);">
+            <input type="hidden" name="expense_id[]" value="{{ e.id }}">
+
 
             <!-- =========================================================
                  CATEGORY + DESCRIPTION CELL
@@ -218,6 +220,8 @@
 
           {% for _ in range(blanks) %}
           <tr style="border-bottom: 1px solid var(--color-border);">
+            <input type="hidden" name="expense_id[]" value="">
+
 
             <!-- Category -->
             <td class="px-4 py-2">
@@ -456,95 +460,109 @@
     // This MUST create fields with correct name="" attributes:
     //   category[] / description[] / cost[]
     function addExpenseRow() {
-      const tr = document.createElement("tr");
-      tr.style.borderBottom = "1px solid var(--color-border)";
+        const tr = document.createElement("tr");
+        tr.style.borderBottom = "1px solid var(--color-border)";
 
-      // Category cell
-      const tdCategory = document.createElement("td");
-      tdCategory.className = "px-4 py-2";
-      tdCategory.innerHTML = `
-        <select
-          name="category[]"
-          class="expense-category-select w-full rounded px-2 py-2"
-          style="
-            background-color: var(--color-input-bg);
-            border: 1px solid var(--color-border);
-            color: var(--color-text);
-          "
-        >
-          <option value="" selected>Pick…</option>
-          {% for c in expense_categories %}
-            <option value="{{ c }}">{{ c }}</option>
-          {% endfor %}
-          <option value="__custom__">Custom</option>
-        </select>
-      `;
+        // --------------------------------------------------
+        // B3: ROW IDENTITY (NEW ROW)
+        // --------------------------------------------------
+        // Every row MUST submit an expense_id[] value.
+        // Existing rows use their database ID.
+        // New rows use an empty value ("") so backend knows to INSERT.
+        const hiddenId = document.createElement("input");
+        hiddenId.type = "hidden";
+        hiddenId.name = "expense_id[]";
+        hiddenId.value = "";
 
-      // Description cell
-      const tdDescription = document.createElement("td");
-      tdDescription.className = "px-4 py-2";
-      tdDescription.innerHTML = `
-        <input
-          type="text"
-          name="description[]"
-          value=""
-          placeholder="e.g., Pet Food"
-          class="w-full rounded px-3 py-2"
-          style="
-            background-color: var(--color-input-bg);
-            border: 1px solid var(--color-border);
-            color: var(--color-text);
-          "
-        >
-      `;
+        // Hidden inputs can live directly inside <tr>
+        tr.appendChild(hiddenId);
 
-      // Cost cell
-      const tdCost = document.createElement("td");
-      tdCost.className = "px-4 py-2";
-      tdCost.innerHTML = `
-        <input
-          type="number"
-          name="cost[]"
-          value=""
-          step="0.01"
-          min="0"
-          placeholder="0.00"
-          class="w-full rounded px-3 py-2"
-          style="
-            background-color: var(--color-input-bg);
-            border: 1px solid var(--color-border);
-            color: var(--color-text);
-          "
-        >
-      `;
+        // --------------------------------------------------
+        // Item cell (dropdown + text input)
+        // --------------------------------------------------
+        const tdItem = document.createElement("td");
+        tdItem.className = "px-4 py-2";
+        tdItem.innerHTML = `
+            <div class="flex gap-2">
+            <select
+                class="expense-category-select rounded px-2 py-2"
+                style="
+                background-color: var(--color-input-bg);
+                border: 1px solid var(--color-border);
+                color: var(--color-text);
+                min-width: 180px;
+                "
+            >
+                <option value="" selected>Pick…</option>
+                {% for c in expense_categories %}
+                <option value="{{ c }}">{{ c }}</option>
+                {% endfor %}
+                <option value="__custom__">Custom</option>
+            </select>
 
-      // Remove cell
-      const tdRemove = document.createElement("td");
-      tdRemove.className = "px-4 py-2";
-      tdRemove.innerHTML = `
-        <button type="button"
-                class="text-sm font-semibold hover:underline"
-                style="color: var(--color-error);">
-          Remove
-        </button>
-      `;
+            <input
+                type="text"
+                name="description[]"
+                value=""
+                placeholder="e.g., Pet Food"
+                class="w-full rounded px-3 py-2"
+                style="
+                background-color: var(--color-input-bg);
+                border: 1px solid var(--color-border);
+                color: var(--color-text);
+                "
+            >
+            </div>
+        `;
 
-      // Remove button for new rows
-      tdRemove.querySelector("button").addEventListener("click", () => {
-        tr.remove();
+        // --------------------------------------------------
+        // Cost cell
+        // --------------------------------------------------
+        const tdCost = document.createElement("td");
+        tdCost.className = "px-4 py-2";
+        tdCost.innerHTML = `
+            <input
+            type="number"
+            name="cost[]"
+            value=""
+            step="0.01"
+            min="0"
+            placeholder="0.00"
+            class="w-full rounded px-3 py-2"
+            style="
+                background-color: var(--color-input-bg);
+                border: 1px solid var(--color-border);
+                color: var(--color-text);
+            "
+            >
+        `;
+
+        // --------------------------------------------------
+        // Remove button
+        // --------------------------------------------------
+        const tdRemove = document.createElement("td");
+        tdRemove.className = "px-4 py-2";
+        tdRemove.innerHTML = `
+            <button type="button"
+                    class="text-sm font-semibold hover:underline"
+                    style="color: var(--color-error);">
+            Remove
+            </button>
+        `;
+
+        tdRemove.querySelector("button").addEventListener("click", () => {
+            tr.remove();
+            updateExpenseTotals();
+        });
+
+        tr.appendChild(tdItem);
+        tr.appendChild(tdCost);
+        tr.appendChild(tdRemove);
+
+        tbody.appendChild(tr);
         updateExpenseTotals();
-      });
+        }
 
-      tr.appendChild(tdCategory);
-      tr.appendChild(tdDescription);
-      tr.appendChild(tdCost);
-      tr.appendChild(tdRemove);
-
-      if (tbody) tbody.appendChild(tr);
-
-      // Totals won't change yet (blank cost), but keep behavior consistent
-      updateExpenseTotals();
-    }
 
     if (addBtn) {
       addBtn.addEventListener("click", addExpenseRow);

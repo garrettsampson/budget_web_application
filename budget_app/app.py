@@ -223,6 +223,7 @@ def create_app():
             from flask import flash
 
             # Pull the three lists (same row index across lists)
+            expense_ids = request.form.getlist("expense_id[]")
             categories = request.form.getlist("category[]")
             descriptions = request.form.getlist("description[]")
             costs = request.form.getlist("cost[]")
@@ -285,7 +286,7 @@ def create_app():
                 flash(f"Skipped {warnings} row(s) because they were incomplete or invalid.", "warning")
 
             # Persist
-            Expense.query.filter_by(user_id=user.id, year=year, month=month).delete()
+           
 
             for category, description, cost_value in cleaned_rows:
                 db.session.add(Expense(

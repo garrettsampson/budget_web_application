@@ -228,7 +228,60 @@ class Expense(db.Model):
 
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
+    # Track edits and soft-deletes
+    updated_at = db.Column(db.DateTime, nullable=True)
+    deleted_at = db.Column(db.DateTime, nullable=True)
+
+    # Soft-delete flag
+    # True = show in UI
+    # False = hidden but kept for history 
+    is_active = db.Column(db.Boolean, default=True, nullable=False)
+
     user = db.relationship("User", backref=db.backref("expenses", lazy=True))
 
     note = db.Column(db.String(50), nullable=True)
 
+# ===================================================================
+# EXPENSE HISTORY MODEL (AUDIT TRAIL)
+# ===================================================================
+class ExpenseHistory(db.Model):
+    """
+    Audit log of every meaningful change to an Expense row.
+
+    We record:
+      - what changed (create/update/delete)
+      - when it changed
+      - which expense row it belongs to
+      - before-values and after-values
+
+    This lets you do analytics later like:
+      - "what did I change this from?"
+      - "when did this expense first appear?"
+      - "show removed expenses"
+    """
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+    expense_id = db.Column(db.Integer, db.ForeignKey("expense.id"), nullable=False)
+
+    year = db.Column(db.Integer, nullable=False)
+    month = db.Column(db.Integer, nullable=False)
+
+    # create / update / delete
+    action = db.Column(db.String(10), nullable=False)
+
+    # BEFORE values
+    old_category = db.Column(db.String(64), nullable=True)
+    old_description = db.Column(db.String(255), nullable=True)
+    old_cost = db.Column(db.Float, nullable=True)
+
+    # AFTER values
+    new_category = db.Column(db.String(64), nullable=True)
+    new_description = db.Column(db.String(255), nullable=True)
+    new_cost = db.Column(db.Float, nullable=True)
+
+    changed_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+
+    user = db.relationship("User", backref=db.backref("expense_history", lazy=True))
+    expense = db.relationship("Expense", backref=db.backref("history", lazy=True))
