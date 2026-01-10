@@ -1,0 +1,24 @@
+Finish Expenses Part 3 (Persistence & History)
+- We completed 3B backend logic (soft delete + row identity), but DID NOT do 3C yet.
+- Still need:
+  - Ability to view deleted (inactive) expense rows
+  - Toggle like "Show deleted / history"
+  - Visual distinction for deleted rows
+  - Optional restore button for deleted expenses
+- When resuming, start by reviewing current app.py + models.py to confirm 3B is stable before touching templates.
+
+Bug: Newly added expense rows disappear after Save
+- When using "Add Expense", the new row appears visually
+- After entering data and clicking Save, the row is not persisted
+- Likely cause:
+  - JS-added rows missing one or more required form fields:
+    - name="expense_id[]"
+    - name="category[]"
+    - name="description[]"
+    - name="cost[]"
+  - OR mismatch between table columns and backend zip() logic
+- Needs:
+  - Review addExpenseRow() JS
+  - Ensure JS-generated rows exactly match saved-row structure
+  - Verify all parallel lists submit same length
+- This is a 3B follow-up bug, NOT 3C
