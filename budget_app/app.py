@@ -1,36 +1,28 @@
 """
 app.py
 
-This file defines the *main Flask application* that runs your entire program.
+Main Flask application for your budgeting app.
 
-High-Level Flow of This File:
+High-Level Flow:
 --------------------------------------------------------------------
-1. We create a Flask app instance.
-2. We load configuration values (database path, secret key, etc.).
-3. We initialize the SQLAlchemy database object (`db`) so it connects
-   to the Flask app and knows where the database is stored.
-4. We create database tables (if they don't already exist).
-5. We define helper functions (such as get_current_user).
-6. We define ROUTES — these are URLs that users can visit.
+1. Create Flask app instance
+2. Load config (DB path, secret key, etc.)
+3. Initialize SQLAlchemy (db) and Flask-Migrate (migrate)
+4. Create tables (dev-only convenience)
+5. Define helper functions (get_current_user)
+6. Define routes
 """
 
 # --------------------------
-# Import Flask and helpers
+# Imports
 # --------------------------
-from flask import Flask, render_template, request, redirect, url_for
-from flask_migrate import Migrate
-
-# Import your database models
-from models import db, User, IncomeWeek, Expense
-
-# Import configuration settings (DB path, secret key, etc.)
-from config import Config
-
-# Used for automatically filling the form with today's year/month
 from datetime import datetime
 
+from flask import Flask, render_template, request, redirect, url_for, flash
+from flask_migrate import Migrate
 
-
+from config import Config
+from models import db, User, IncomeWeek, Expense
 
 
 # ======================================================================
@@ -38,16 +30,16 @@ from datetime import datetime
 # ======================================================================
 def create_app():
     """Creates and configures the Flask application."""
-
     app = Flask(__name__)
     app.config.from_object(Config)
 
-    # Connect SQLAlchemy "db" to this Flask app
+    # Connect SQLAlchemy to app
     db.init_app(app)
-    # Hook Alembic migrations to this Flask app + db
-    migrate = Migrate(app, db)
 
-    # Create tables + default user if needed
+    # Hook Alembic migrations to this Flask app + db
+    Migrate(app, db)
+
+    # Create tables + default user if needed (OK for early dev; later remove)
     with app.app_context():
         db.create_all()
         if not User.query.first():
@@ -55,7 +47,9 @@ def create_app():
             db.session.add(dummy_user)
             db.session.commit()
 
-    # Helper function
+    # --------------------------------------------------------------
+    # Helper: current user (dummy for now)
+    # --------------------------------------------------------------
     def get_current_user():
         return User.query.first()
 
@@ -74,7 +68,6 @@ def create_app():
         user = get_current_user()
 
         if request.method == "POST":
-            # Convert form values
             hourly = float(request.form["hourly_pay"])
             hours = float(request.form["hours_worked"])
             tax_percent = float(request.form["tax_percent"])
@@ -91,15 +84,12 @@ def create_app():
             ).first()
 
             if existing_entry:
-                from flask import flash
                 flash(f"Week {week_index} for {month}/{year} already exists.", "error")
                 return redirect(url_for("income_month_view", year=year, month=month))
 
-            # Calculate gross + net
             gross = hourly * hours
             net = gross * (1 - tax_percent / 100.0)
 
-            # Create entry
             entry = IncomeWeek(
                 user_id=user.id,
                 year=year,
@@ -117,7 +107,6 @@ def create_app():
 
             return redirect(url_for("income_month_view", year=year, month=month))
 
-        # GET Request: prefill form with today's year/month
         today = datetime.today()
         return render_template(
             "income/form.html",
@@ -152,9 +141,9 @@ def create_app():
             total_net=total_net,
             total_tax=total_tax,
         )
-    
+
     # ==================================================================
-    # ROUTE: EXPENSES
+    # ROUTE: EXPENSES - Select Month
     # ==================================================================
     @app.route("/expenses/select")
     def expenses_select_month():
@@ -164,14 +153,14 @@ def create_app():
             current_year=today.year,
             current_month=today.month,
         )
-    
+
     # ==================================================================
-    # ROUTE: Expenses (Redirect after selecting Month/Year for EXPENSES)
+    # ROUTE: EXPENSES - Redirect after selecting Month/Year
+    # IMPORTANT: this endpoint name MUST match your templates:
+    #   url_for("expenses_view_redirect")
     # ==================================================================
     @app.route("/expenses/view")
     def expenses_view_redirect():
-        from flask import flash
-
         year = request.args.get("year")
         month = request.args.get("month")
 
@@ -179,18 +168,18 @@ def create_app():
             flash("Please select both a year and month.", "error")
             return redirect(url_for("expenses_select_month"))
 
-        return redirect(url_for("expenses_month_view", year=year, month=month))
+        return redirect(url_for("expenses_month_view", year=int(year), month=int(month)))
 
     # ==================================================================
-    # ROUTE: Expenses (Monthly Expenses Summary)
+    # ROUTE: EXPENSES - Month View (Spreadsheet-like)
     # ==================================================================
     @app.route("/expenses/<int:year>/<int:month>", methods=["GET", "POST"])
     def expenses_month_view(year, month):
         user = get_current_user()
 
-        # --------------------------
-        # 1) Pull income totals FIRST
-        # --------------------------
+        # --------------------------------------------------------------
+        # 1) Pull income totals FIRST (for Money Left calculation)
+        # --------------------------------------------------------------
         income_entries = (
             IncomeWeek.query
             .filter_by(user_id=user.id, year=year, month=month)
@@ -199,63 +188,64 @@ def create_app():
         total_gross = sum(e.gross for e in income_entries)
         total_net = sum(e.net for e in income_entries)
 
-        # --------------------------
-        # 2) If user submits expenses
-        # --------------------------
+        # --------------------------------------------------------------
+        # 2) POST: Save Expenses (3B - "do NOT delete, soft-delete instead")
+        # --------------------------------------------------------------
         if request.method == "POST":
             """
-            When the user clicks "Save Expenses", the browser submits ALL rows.
-
-            IMPORTANT:
-            We now submit 3 parallel lists:
-              - category[]     (dropdown choice)
-              - description[]  (free-text details)
+            The form submits 4 parallel lists (row index is the key):
+              - expense_id[]   (hidden input; blank for new rows)
+              - category[]     (dropdown)
+              - description[]  (free text)
               - cost[]         (money)
 
-            Our save strategy (for now) is still:
-              1) Delete this month’s existing rows
-              2) Insert rows based on the current form submission
-
-            Later (when you add migrations and IDs per row), we can do true updates
-            without a delete/reinsert — but this is fine early-stage.
+            New behavior (3B):
+              - If expense_id exists -> update that row
+              - If expense_id blank  -> create new row
+              - Any previously-active rows NOT included in the submission
+                -> soft-delete (is_active=False, deleted_at timestamp)
             """
 
-            from flask import flash
-
-            # Pull the three lists (same row index across lists)
             expense_ids = request.form.getlist("expense_id[]")
             categories = request.form.getlist("category[]")
             descriptions = request.form.getlist("description[]")
             costs = request.form.getlist("cost[]")
 
-            cleaned_rows = []
-            warnings = 0
+            # Load all currently-active expenses for that month into a dict by id
+            existing_active = (
+                Expense.query
+                .filter_by(user_id=user.id, year=year, month=month, is_active=True)
+                .order_by(Expense.id)
+                .all()
+            )
+            existing_by_id = {str(e.id): e for e in existing_active}
 
-            # Zip all three together so row 1 stays row 1 across category/description/cost
-            for idx, (category, description, cost) in enumerate(zip(categories, descriptions, costs), start=1):
-                category = (category or "").strip()
-                description = (description or "").strip()
+            now = datetime.utcnow()
+            submitted_ids = set()     # expense IDs we updated/kept
+            warnings = 0
+            saved_count = 0
+
+            # Loop row-by-row (keep row alignment using zip)
+            for row_idx, (eid, category, description, cost) in enumerate(
+                zip(expense_ids, categories, descriptions, costs),
+                start=1
+            ):
+                eid = (eid or "").strip()
+                if eid:
+                    submitted_ids.add(eid)
+                category = (category or "").strip() or None
+                description = (description or "").strip() or None
                 cost = (cost or "").strip()
 
-                # Normalize "Pick…" / blank dropdown → treat as empty
-                # (Your HTML uses value="" for Pick…)
-                if category == "":
-                    category = None
-
-                # Normalize blank description → empty
-                if description == "":
-                    description = None
-
-                # Completely blank row → skip silently
-                if category is None and description is None and cost == "":
+                # Blank row: skip
+                if (not eid) and (category is None) and (description is None) and (cost == ""):
                     continue
 
-                # If they typed something but forgot cost → warning, skip
+                # Must have a cost if anything else is filled
                 if cost == "":
                     warnings += 1
                     continue
 
-                # Validate cost
                 try:
                     cost_value = float(cost)
                 except ValueError:
@@ -268,62 +258,93 @@ def create_app():
 
                 cost_value = round(cost_value, 2)
 
-                # If they provided cost but BOTH category and description are empty,
-                # we consider that invalid (otherwise analytics later is messy).
+                # Require at least category OR description so analytics isn't garbage
                 if category is None and description is None:
                     warnings += 1
                     continue
 
-                cleaned_rows.append((category, description, cost_value))
+                # --------------------------
+                # UPDATE existing row
+                # --------------------------
+                if eid and eid in existing_by_id:
+                    exp = existing_by_id[eid]
+                    exp.category = category
+                    exp.description = description
+                    exp.cost = cost_value
+                    exp.is_active = True
+                    exp.deleted_at = None
 
-            # Feedback messages
-            if not cleaned_rows:
-                flash("No valid expense rows found. Month cleared (if it had any saved rows).", "warning")
-            else:
-                flash("Expenses saved successfully.", "success")
+                    # If your model has updated_at, keep this:
+                    if hasattr(exp, "updated_at"):
+                        exp.updated_at = now
 
-            if warnings > 0:
-                flash(f"Skipped {warnings} row(s) because they were incomplete or invalid.", "warning")
+                    
+                    saved_count += 1
+                    continue
 
-            # Persist
-           
-
-            for category, description, cost_value in cleaned_rows:
-                db.session.add(Expense(
+                # --------------------------
+                # CREATE new row
+                # --------------------------
+                new_exp = Expense(
                     user_id=user.id,
                     year=year,
                     month=month,
                     category=category,
                     description=description,
-                    cost=cost_value
-                ))
+                    cost=cost_value,
+                    is_active=True,
+                    deleted_at=None,
+                )
+
+                # If your model has created_at/updated_at, keep these:
+                if hasattr(new_exp, "created_at") and new_exp.created_at is None:
+                    new_exp.created_at = now
+                if hasattr(new_exp, "updated_at"):
+                    new_exp.updated_at = now
+
+                db.session.add(new_exp)
+                saved_count += 1
+
+            # --------------------------------------------------------------
+            # Soft-delete anything that was previously active but NOT submitted
+            # --------------------------------------------------------------
+            for exp in existing_active:
+                exp_id_str = str(exp.id)
+                if exp_id_str not in submitted_ids:
+                    exp.is_active = False
+                    exp.deleted_at = now
+                    if hasattr(exp, "updated_at"):
+                        exp.updated_at = now
 
             db.session.commit()
 
-            return redirect(url_for("expenses_month_view", year=year, month=month))   
-        # --------------------------
+            # UI messages
+            if saved_count == 0:
+                flash("No valid expense rows found. Nothing saved.", "warning")
+            else:
+                flash(f"Saved {saved_count} expense row(s).", "success")
+
+            if warnings > 0:
+                flash(f"Skipped {warnings} row(s) because they were incomplete or invalid.", "warning")
+
+            return redirect(url_for("expenses_month_view", year=year, month=month))
+
+        # --------------------------------------------------------------
         # 3) GET: show page
-        # --------------------------
+        # --------------------------------------------------------------
         expenses = (
             Expense.query
-            .filter_by(user_id=user.id, year=year, month=month)
+            .filter_by(user_id=user.id, year=year, month=month, is_active=True)
             .order_by(Expense.id)
             .all()
         )
 
         total_spent = sum(x.cost for x in expenses)
-        money_left = total_net - total_spent  # ✅ net is the base
+        money_left = total_net - total_spent
 
-        # ------------------------------------------------------------
-        # Expense category dropdown choices (for the UI)
-        # ------------------------------------------------------------
-        # We are keeping this as a simple Python list for now.
-        # Later, we can move it into the database so each user can customize it.
+        # Category dropdown list
         expense_categories = [
-
-            # ----------------------------
             # Housing & Utilities
-            # ----------------------------
             "Electricity Bill",
             "Homeowners/Renters Insurance",
             "Internet",
@@ -331,15 +352,11 @@ def create_app():
             "Utilities",
             "Water Bill",
 
-            # ----------------------------
             # Food & Dining
-            # ----------------------------
             "Eating Out",
             "Groceries",
 
-            # ----------------------------
-            # Transportation (Vehicles & Fuel)
-            # ----------------------------
+            # Transportation
             "Car Insurance",
             "Car Payment",
             "Gas",
@@ -347,9 +364,7 @@ def create_app():
             "Motorcycle Payment",
             "Transportation",
 
-            # ----------------------------
             # Health & Medical
-            # ----------------------------
             "Dental Insurance",
             "Disability Insurance",
             "Health Insurance",
@@ -357,50 +372,36 @@ def create_app():
             "Medical",
             "Vision Insurance",
 
-            # ----------------------------
             # Insurance (Non-Health)
-            # ----------------------------
             "Liability Insurance",
             "Life Insurance",
 
-            # ----------------------------
             # Pets
-            # ----------------------------
             "Pet Care",
             "Pet Food",
             "Pet Insurance",
             "Pet Surgery",
 
-            # ----------------------------
             # Personal & Lifestyle
-            # ----------------------------
             "Clothing",
             "Entertainment",
             "Gym Membership",
             "Subscriptions",
 
-            # ----------------------------
             # Education & Childcare
-            # ----------------------------
             "Childcare",
             "School",
             "Student Loans",
 
-            # ----------------------------
-            # Debt & Financial Obligations
-            # ----------------------------
+            # Debt & Financial
             "Credit Card Debt",
             "Credit Card Payments",
             "Debt",
             "Loans",
 
-            # ----------------------------
-            # Miscellaneous
-            # ----------------------------
+            # Misc
             "Other",
         ]
-
-
 
         return render_template(
             "expenses/month_view.html",
@@ -414,22 +415,11 @@ def create_app():
             expense_categories=expense_categories,
         )
 
-                          
-
-    
     # ==================================================================
-    # ROUTE: Settings (Theme selection etc.)
+    # ROUTE: Settings
     # ==================================================================
     @app.route("/settings")
     def settings():
-        """
-        Settings page.
-        Right now it only contains theme selection UI, but later we can add:
-        - account settings
-        - partner mode
-        - currency preferences
-        - notification preferences
-        """
         return render_template("settings.html")
 
     # ==================================================================
@@ -437,8 +427,6 @@ def create_app():
     # ==================================================================
     @app.route("/income/delete/<int:week_id>", methods=["POST"])
     def delete_week(week_id):
-        from flask import flash
-
         entry = IncomeWeek.query.get_or_404(week_id)
         year = entry.year
         month = entry.month
@@ -454,8 +442,6 @@ def create_app():
     # ==================================================================
     @app.route("/income/reset", methods=["POST"])
     def reset_income():
-        from flask import flash
-
         user = get_current_user()
         IncomeWeek.query.filter_by(user_id=user.id).delete()
         db.session.commit()
@@ -464,7 +450,7 @@ def create_app():
         return redirect(url_for("income_select_month"))
 
     # ==================================================================
-    # ROUTE: Select a Month/Year
+    # ROUTE: Select a Month/Year (Income)
     # ==================================================================
     @app.route("/income/select")
     def income_select_month():
@@ -476,12 +462,10 @@ def create_app():
         )
 
     # ==================================================================
-    # ROUTE: Redirect after selecting Month/Year
+    # ROUTE: Redirect after selecting Month/Year (Income)
     # ==================================================================
     @app.route("/income/view")
     def income_view_redirect():
-        from flask import flash
-
         year = request.args.get("year")
         month = request.args.get("month")
 
@@ -489,7 +473,7 @@ def create_app():
             flash("Please select both a year and month.", "error")
             return redirect(url_for("income_select_month"))
 
-        return redirect(url_for("income_month_view", year=year, month=month))
+        return redirect(url_for("income_month_view", year=int(year), month=int(month)))
 
     return app
 
