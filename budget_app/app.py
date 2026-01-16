@@ -301,7 +301,6 @@ def create_app():
             "Health",
             "Shopping",
             "Entertainment",
-            "Other",
         ]
 
         # ------------------------------------------------------------------
@@ -607,7 +606,6 @@ def create_app():
             "Debt Payoff",
             "Big Purchase Fund",
             "Travel Fund",
-            "Other",
         ]
 
         # --------------------------------------------------------------
