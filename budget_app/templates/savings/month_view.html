@@ -54,24 +54,12 @@
 
   <ul class="space-y-1 text-sm">
     <li>
-      <strong style="color: var(--color-text);">Total Net Income:</strong>
-      <span style="color: var(--color-text-secondary);">
-        {{ "%.2f"|format(total_net) }}
-      </span>
-    </li>
-    <li>
-      <strong style="color: var(--color-text);">Total Expenses:</strong>
-      <span style="color: var(--color-text-secondary);">
-        {{ "%.2f"|format(total_spent) }}
-      </span>
-    </li>
-    <li>
-      <strong style="color: var(--color-text);">Left to Allocate:</strong>
-      <span style="color: var(--color-text-secondary);">
+        <strong style="color: var(--color-text);">Left to Allocate:</strong>
+        <span style="color: var(--color-text-secondary);">
         {{ "%.2f"|format(money_left) }}
-      </span>
+        </span>
     </li>
-  </ul>
+    </ul>
 </div>
 
 <!-- SAVINGS EDITOR CARD (matches Expenses editor card style) -->
@@ -284,11 +272,19 @@
     <div class="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-4">
 
       <!-- TOTAL PERCENT -->
-      <div class="rounded-lg p-4"
-           style="background-color: var(--color-card-bg); border: 1px solid var(--color-border);">
+        <div class="rounded-lg p-4"
+            style="background-color: var(--color-card-bg); border: 1px solid var(--color-border);">
         <div class="text-sm" style="color: var(--color-text-secondary);">Total Allocated (%)</div>
+
         <div class="text-2xl font-bold" style="color: var(--color-text);">
-          <span id="total-percent">0.00</span>%
+            <span id="total-percent">0.00</span>%
+        </div>
+
+        <!-- This warning is hidden by default and only shown if total > 100% -->
+        <div id="percent-warning"
+            class="text-sm mt-2"
+            style="color: var(--color-error); display: none;">
+            Total cannot exceed 100%. Lower your percentages to save.
         </div>
       </div>
 
@@ -314,7 +310,7 @@
 
     <!-- ACTION BUTTONS -->
     <div class="pt-6 flex flex-wrap gap-3">
-      <button type="submit" class="btn-primary">
+      <button type="submit" class="btn-primary" id="save-savings-btn">
         Save Savings
       </button>
 
@@ -414,9 +410,32 @@
     const savedEl = document.getElementById("total-saved");
     const leftEl = document.getElementById("left-after");
 
+    const warningEl = document.getElementById("percent-warning");
+    const saveBtn = document.getElementById("save-savings-btn");
+
     if (percentEl) percentEl.textContent = totalPercent.toFixed(2);
     if (savedEl) savedEl.textContent = formatMoney(totalSaved);
     if (leftEl) leftEl.textContent = formatMoney(leftAfter);
+
+    /*
+    HARD UI RULE:
+    - If totalPercent > 100, the user is allocating more than they have.
+    - We:
+        1) show a warning message
+        2) disable the Save button
+    */
+    const overLimit = totalPercent > 100;
+
+    if (warningEl) warningEl.style.display = overLimit ? "block" : "none";
+
+    if (saveBtn) {
+    saveBtn.disabled = overLimit;
+
+    // Optional visual feedback so disabled doesn't look "broken"
+    saveBtn.style.opacity = overLimit ? "0.55" : "1";
+    saveBtn.style.cursor = overLimit ? "not-allowed" : "pointer";
+    }
+
   }
 
   // ============================================================

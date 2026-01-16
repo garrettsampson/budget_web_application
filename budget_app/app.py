@@ -525,6 +525,8 @@ def create_app():
             submitted_ids = set()
             warnings = 0
             saved_count = 0
+            # NEW: track total percent for this submission
+            total_percent_submitted = 0.0
 
             for row_idx, (aid, bucket, name, percent) in enumerate(
                 zip(allocation_ids, buckets, names, percents),
@@ -560,6 +562,14 @@ def create_app():
                     continue
 
                 percent_value = round(percent_value, 2)
+
+                # NEW: add to total percent as we accept rows
+                total_percent_submitted += percent_value
+
+                # NEW: if we exceed 100 at any point, stop and do NOT save anything
+                if total_percent_submitted > 100:
+                    flash("Savings allocations cannot exceed 100%. Please lower your percentages.", "error")
+                    return redirect(url_for("savings_month_view", year=year, month=month))
 
                 # Require at least bucket OR name so analytics isn't garbage
                 if bucket is None and name is None:
