@@ -226,8 +226,18 @@ These classes come from TailwindCSS.
                 <a href="{{ url_for('expenses_view_redirect') }}" class="nav-link">Expenses</a>
 
 
-                
-                <a href="/savings" class="nav-link">Savings</a>
+                <!--
+                    SAVINGS TAB
+                    -----------
+                    We link to the "view redirect" endpoint, exactly like Expenses.
+
+                    Why not link to "/savings" directly?
+                    Because the Savings page is month-specific:
+                        /savings/<year>/<month>
+
+                    So we send the user to the month picker first.
+                -->
+                <a href="{{ url_for('savings_view_redirect') }}" class="nav-link">Savings</a>
                 <a href="/yearly" class="nav-link">Yearly</a>
                 <a href="/goals" class="nav-link">Goals</a>
             </div>

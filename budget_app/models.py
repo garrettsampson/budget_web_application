@@ -285,3 +285,61 @@ class ExpenseHistory(db.Model):
 
     user = db.relationship("User", backref=db.backref("expense_history", lazy=True))
     expense = db.relationship("Expense", backref=db.backref("history", lazy=True))
+
+# ===================================================================
+# SAVINGS ALLOCATION MODEL
+# ===================================================================
+class SavingsAllocation(db.Model):
+    """
+    Represents ONE "savings" row for a specific user, month, and year.
+
+    This table is intentionally designed to mirror the Expenses table
+    behavior, but with one important difference:
+
+        - Expenses store a *dollar* cost.
+        - Savings store a *percent* allocation.
+
+    We do NOT permanently store the dollar amount, because the dollar
+    amount depends on "money_left" which can change if income/expenses
+    change. Instead, we store the percent and compute dollars live:
+
+        row_amount = money_left * (percent / 100)
+
+    Fields:
+      - bucket:  the dropdown category (e.g., "Retirement", "Emergency Fund")
+      - name:    the specific item inside that bucket (typed by the user)
+      - percent: the allocation percent for this row (0-100)
+
+    Like Expense, we support soft-delete so rows can be removed from the
+    spreadsheet UI without permanently losing history.
+    """
+
+    # Primary key (unique row id)
+    id = db.Column(db.Integer, primary_key=True)
+
+    # Who this row belongs to
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+
+    # Which month/year this row belongs to
+    year = db.Column(db.Integer, nullable=False)
+    month = db.Column(db.Integer, nullable=False)
+
+    # "Bucket" = the dropdown grouping/category
+    bucket = db.Column(db.String(64), nullable=True)
+
+    # "Name" = the specific item inside the bucket
+    # (We intentionally allow free-text so the user can create new names)
+    name = db.Column(db.String(255), nullable=True)
+
+    # Percent allocation for this row.
+    # Stored as a float so you can do decimals like 12.5%
+    percent = db.Column(db.Float, nullable=False, default=0.0)
+
+    # Timestamps + soft-delete controls
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, nullable=True)
+    deleted_at = db.Column(db.DateTime, nullable=True)
+    is_active = db.Column(db.Boolean, default=True, nullable=False)
+
+    # Relationship back to the User
+    user = db.relationship("User", backref=db.backref("savings_allocations", lazy=True))

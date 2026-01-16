@@ -23,3 +23,18 @@ Bug: Newly added expense rows disappear after Save
   - Ensure JS-generated rows exactly match saved-row structure
   - Verify all parallel lists submit same length
 - This is a 3B follow-up bug, NOT 3C
+
+The user needs to be able to enter in their paychecks as normal instead of having to enter tax, hours, etc. 
+The user also needs to be able to select when they get paid, like every 2 weeks on a thursday that way you are entering in
+data for those days instead of week by week. My thought is the user could select in this order:
+ - select what day you got paid 
+ - select what days the pay was for (so you click like Monday the 15th then click Saturday the 20th and it would select all 
+ of the days in between)
+ - enter in paycheck (with or with hours and taxes) (have a checkbox that allows them to do it with math as in hours * pay
+ or have it where they can just enter in the hours for the program to store that information for later)
+
+Later down the line there should be more visual representation of progress, pay being earned or money lost, etc with the graphs.
+
+For the summary at the end we should add in total amount of hours worked, and a ton of information just for fun. Myabe add in a 
+feature that is like "Good job, you worked 10 hours less this year and still made $1000 more!, something that can analyze and 
+give simple feedback. 

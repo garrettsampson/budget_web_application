@@ -22,7 +22,7 @@ from flask import Flask, render_template, request, redirect, url_for, flash
 from flask_migrate import Migrate
 
 from config import Config
-from models import db, User, IncomeWeek, Expense
+from models import db, User, IncomeWeek, Expense, SavingsAllocation
 
 
 # ======================================================================
@@ -414,6 +414,271 @@ def create_app():
             money_left=money_left,
             expense_categories=expense_categories,
         )
+    
+        # ==================================================================
+    # ROUTE: SAVINGS - Select Month
+    # ==================================================================
+    @app.route("/savings/select")
+    def savings_select_month():
+        """Shows a simple form that lets the user pick a month + year."""
+
+        today = datetime.today()
+        return render_template(
+            "savings/select_month.html",
+            current_year=today.year,
+            current_month=today.month,
+        )
+
+    # ==================================================================
+    # ROUTE: SAVINGS - Redirect after selecting Month/Year
+    # IMPORTANT: we mirror the exact pattern used by /expenses/view
+    # so templates can do url_for("savings_view_redirect").
+    # ==================================================================
+    @app.route("/savings/view")
+    def savings_view_redirect():
+        """Takes ?year=YYYY&month=MM and redirects to the month view."""
+
+        year = request.args.get("year")
+        month = request.args.get("month")
+
+        if not year or not month:
+            flash("Please select both a year and month.", "error")
+            return redirect(url_for("savings_select_month"))
+
+        return redirect(url_for("savings_month_view", year=int(year), month=int(month)))
+
+    # ==================================================================
+    # ROUTE: SAVINGS - Month View (Spreadsheet-like)
+    #
+    # What this page does:
+    #   1) Calculates money_left = (total net income) - (total active expenses)
+    #   2) Lets the user allocate THAT money_left into savings buckets by percent
+    #   3) Shows a live "$ amount" column for each percent
+    #   4) Persists allocations to the database (just like expenses)
+    # ==================================================================
+    @app.route("/savings/<int:year>/<int:month>", methods=["GET", "POST"])
+    def savings_month_view(year, month):
+        """Savings page: allocate leftover money from expenses using percentages."""
+
+        user = get_current_user()
+
+        # --------------------------------------------------------------
+        # 1) Calculate the "leftover" money for this month
+        # --------------------------------------------------------------
+        # We reuse the exact logic you already trust on the Expenses page:
+        #   - sum monthly NET income
+        #   - subtract all ACTIVE expenses
+        # The result is the budget amount available for savings allocations.
+
+        income_entries = (
+            IncomeWeek.query
+            .filter_by(user_id=user.id, year=year, month=month)
+            .all()
+        )
+        total_net = sum(e.net for e in income_entries)
+
+        expenses = (
+            Expense.query
+            .filter_by(user_id=user.id, year=year, month=month, is_active=True)
+            .all()
+        )
+        total_spent = sum(x.cost for x in expenses)
+
+        # This is the base amount that the Savings table allocates.
+        money_left = total_net - total_spent
+
+        # --------------------------------------------------------------
+        # 2) POST: Save Savings Allocations (mirrors expenses save logic)
+        # --------------------------------------------------------------
+        if request.method == "POST":
+            """
+            The Savings form submits 4 parallel lists (row alignment matters):
+              - allocation_id[]  (hidden input; blank for new rows)
+              - bucket[]         (dropdown)
+              - name[]           (free text w/ suggestions)
+              - percent[]        (percent 0-100)
+
+            Save behavior (copy of Expenses rules):
+              - If allocation_id exists -> update that row
+              - If allocation_id blank  -> create new row
+              - Any previously-active rows NOT included in the submission
+                -> soft-delete (is_active=False + deleted_at timestamp)
+
+            NOTE: We store ONLY the percent.
+                  The dollar amount is derived live from `money_left`.
+            """
+
+            allocation_ids = request.form.getlist("allocation_id[]")
+            buckets = request.form.getlist("bucket[]")
+            names = request.form.getlist("name[]")
+            percents = request.form.getlist("percent[]")
+
+            existing_active = (
+                SavingsAllocation.query
+                .filter_by(user_id=user.id, year=year, month=month, is_active=True)
+                .order_by(SavingsAllocation.id)
+                .all()
+            )
+            existing_by_id = {str(a.id): a for a in existing_active}
+
+            now = datetime.utcnow()
+            submitted_ids = set()
+            warnings = 0
+            saved_count = 0
+
+            for row_idx, (aid, bucket, name, percent) in enumerate(
+                zip(allocation_ids, buckets, names, percents),
+                start=1
+            ):
+                # Normalize inputs (strip whitespace, convert blanks -> None)
+                aid = (aid or "").strip()
+                if aid:
+                    submitted_ids.add(aid)
+
+                bucket = (bucket or "").strip() or None
+                name = (name or "").strip() or None
+                percent = (percent or "").strip()
+
+                # Completely blank row: skip
+                if (not aid) and (bucket is None) and (name is None) and (percent == ""):
+                    continue
+
+                # If the user started a row, we REQUIRE a percent.
+                if percent == "":
+                    warnings += 1
+                    continue
+
+                try:
+                    percent_value = float(percent)
+                except ValueError:
+                    warnings += 1
+                    continue
+
+                # Basic validation for sanity + UI consistency
+                if percent_value < 0 or percent_value > 100:
+                    warnings += 1
+                    continue
+
+                percent_value = round(percent_value, 2)
+
+                # Require at least bucket OR name so analytics isn't garbage
+                if bucket is None and name is None:
+                    warnings += 1
+                    continue
+
+                # --------------------------
+                # UPDATE existing row
+                # --------------------------
+                if aid and aid in existing_by_id:
+                    alloc = existing_by_id[aid]
+                    alloc.bucket = bucket
+                    alloc.name = name
+                    alloc.percent = percent_value
+                    alloc.is_active = True
+                    alloc.deleted_at = None
+                    alloc.updated_at = now
+                    saved_count += 1
+                    continue
+
+                # --------------------------
+                # CREATE new row
+                # --------------------------
+                new_alloc = SavingsAllocation(
+                    user_id=user.id,
+                    year=year,
+                    month=month,
+                    bucket=bucket,
+                    name=name,
+                    percent=percent_value,
+                    is_active=True,
+                    deleted_at=None,
+                )
+                new_alloc.created_at = now
+                new_alloc.updated_at = now
+                db.session.add(new_alloc)
+                saved_count += 1
+
+            # Soft-delete anything that used to be active but wasn't submitted
+            for alloc in existing_active:
+                alloc_id_str = str(alloc.id)
+                if alloc_id_str not in submitted_ids:
+                    alloc.is_active = False
+                    alloc.deleted_at = now
+                    alloc.updated_at = now
+
+            db.session.commit()
+
+            if saved_count == 0:
+                flash("No valid savings rows found. Nothing saved.", "warning")
+            else:
+                flash(f"Saved {saved_count} savings row(s).", "success")
+
+            if warnings > 0:
+                flash(f"Skipped {warnings} row(s) because they were incomplete or invalid.", "warning")
+
+            return redirect(url_for("savings_month_view", year=year, month=month))
+
+        # --------------------------------------------------------------
+        # 3) GET: show page
+        # --------------------------------------------------------------
+        allocations = (
+            SavingsAllocation.query
+            .filter_by(user_id=user.id, year=year, month=month, is_active=True)
+            .order_by(SavingsAllocation.id)
+            .all()
+        )
+
+        # Total percent allocated (used to compute totals)
+        total_percent = sum(a.percent for a in allocations)
+
+        # Dollar totals are derived from the current money_left.
+        # (If expenses change later, savings amounts update automatically.)
+        total_saved = money_left * (total_percent / 100.0)
+        savings_leftover = money_left - total_saved
+
+        # Dropdown buckets (customize these anytime)
+        savings_buckets = [
+            "Emergency Fund",
+            "Retirement",
+            "Brokerage / Investing",
+            "Debt Payoff",
+            "Big Purchase Fund",
+            "Travel Fund",
+            "Other",
+        ]
+
+        # For the "name" field suggestions, we pull prior names by bucket.
+        # We ship this to the template so it can populate <datalist> options.
+        existing_names_by_bucket = {}
+        for b in savings_buckets:
+            names_for_bucket = (
+                db.session.query(SavingsAllocation.name)
+                .filter(
+                    SavingsAllocation.user_id == user.id,
+                    SavingsAllocation.bucket == b,
+                    SavingsAllocation.name.isnot(None),
+                )
+                .distinct()
+                .order_by(SavingsAllocation.name)
+                .all()
+            )
+            existing_names_by_bucket[b] = [n[0] for n in names_for_bucket]
+
+        return render_template(
+            "savings/month_view.html",
+            year=year,
+            month=month,
+            total_net=total_net,
+            total_spent=total_spent,
+            money_left=money_left,
+            allocations=allocations,
+            total_percent=total_percent,
+            total_saved=total_saved,
+            savings_leftover=savings_leftover,
+            savings_buckets=savings_buckets,
+            existing_names_by_bucket=existing_names_by_bucket,
+        )
+
 
     # ==================================================================
     # ROUTE: Settings
