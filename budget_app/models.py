@@ -343,3 +343,109 @@ class SavingsAllocation(db.Model):
 
     # Relationship back to the User
     user = db.relationship("User", backref=db.backref("savings_allocations", lazy=True))
+
+# ===================================================================
+# EXPENSES: Custom dropdown options (Bucket + Merchant)
+# ===================================================================
+
+class ExpenseBucketOption(db.Model):
+    """
+    A user-defined BUCKET/GROUP option for expenses (dropdown #1).
+
+    Examples:
+      - Subscriptions
+      - Utilities
+      - Pet Care
+      - (custom user bucket)
+
+    We soft-delete so the user can remove options without breaking history.
+    """
+    id = db.Column(db.Integer, primary_key=True)
+
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+
+    # The text shown in the dropdown (the actual bucket name)
+    label = db.Column(db.String(64), nullable=False)
+
+    is_active = db.Column(db.Boolean, default=True, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    deleted_at = db.Column(db.DateTime, nullable=True)
+
+    user = db.relationship("User", backref=db.backref("expense_bucket_options", lazy=True))
+
+
+class ExpenseMerchantOption(db.Model):
+    """
+    A user-defined MERCHANT/NAME option for expenses (dropdown #2),
+    scoped to a specific bucket label.
+
+    Examples:
+      bucket_label="Subscriptions" -> "Netflix", "Spotify"
+      bucket_label="Utilities"     -> "Entergy", "City Water"
+    """
+    id = db.Column(db.Integer, primary_key=True)
+
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+
+    # Which bucket this name belongs to (store bucket text to keep it simple)
+    bucket_label = db.Column(db.String(64), nullable=False)
+
+    # The merchant/name
+    name = db.Column(db.String(255), nullable=False)
+
+    is_active = db.Column(db.Boolean, default=True, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    deleted_at = db.Column(db.DateTime, nullable=True)
+
+    user = db.relationship("User", backref=db.backref("expense_merchant_options", lazy=True))
+
+
+# ===================================================================
+# SAVINGS: Custom dropdown options (Bucket + Name)
+# ===================================================================
+
+class SavingsBucketOption(db.Model):
+    """
+    A user-defined BUCKET option for savings (dropdown #1).
+
+    Examples:
+      - Investments
+      - Emergency Fund
+      - Travel Fund
+      - (custom user bucket)
+    """
+    id = db.Column(db.Integer, primary_key=True)
+
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+
+    label = db.Column(db.String(64), nullable=False)
+
+    is_active = db.Column(db.Boolean, default=True, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    deleted_at = db.Column(db.DateTime, nullable=True)
+
+    user = db.relationship("User", backref=db.backref("savings_bucket_options", lazy=True))
+
+
+class SavingsNameOption(db.Model):
+    """
+    A user-defined NAME option for savings (dropdown #2),
+    scoped to a specific bucket label.
+
+    Examples:
+      bucket_label="Investments" -> "Rental Property", "VOO"
+      bucket_label="Debt Payoff" -> "Car Loan"
+    """
+    id = db.Column(db.Integer, primary_key=True)
+
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+
+    bucket_label = db.Column(db.String(64), nullable=False)
+
+    name = db.Column(db.String(255), nullable=False)
+
+    is_active = db.Column(db.Boolean, default=True, nullable=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    deleted_at = db.Column(db.DateTime, nullable=True)
+
+    user = db.relationship("User", backref=db.backref("savings_name_options", lazy=True))
