@@ -8,8 +8,9 @@ Finish Expenses Part 3 (Persistence & History)
 - When resuming, start by reviewing current app.py + models.py to confirm 3B is stable before touching templates.
 
 Bug: Newly added expense rows disappear after Save
-- When using "Add Expense", the new row appears visually
+- When using "Add Expense", the new row appears visually offcentered
 - After entering data and clicking Save, the row is not persisted
+- After row disappears the total money spent still stays affected as if the data is saved but not visible
 - Likely cause:
   - JS-added rows missing one or more required form fields:
     - name="expense_id[]"
