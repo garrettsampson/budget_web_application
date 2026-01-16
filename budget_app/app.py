@@ -22,7 +22,17 @@ from flask import Flask, render_template, request, redirect, url_for, flash
 from flask_migrate import Migrate
 
 from config import Config
-from models import db, User, IncomeWeek, Expense, SavingsAllocation
+from models import (
+    db,
+    User,
+    IncomeWeek,
+    Expense,
+    SavingsAllocation,
+    ExpenseBucketOption,
+    ExpenseMerchantOption,
+    SavingsBucketOption,
+    SavingsNameOption,
+)
 
 
 # ======================================================================
@@ -113,6 +123,82 @@ def create_app():
             current_year=today.year,
             current_month=today.month,
         )
+    
+    # ===================================================================
+    # API: Delete custom dropdown options (soft-delete)
+    # ===================================================================
+
+    @app.post("/api/expenses/bucket/delete/<int:opt_id>")
+    def api_delete_expense_bucket(opt_id):
+        user = get_current_user()
+
+        opt = ExpenseBucketOption.query.filter_by(
+            id=opt_id, user_id=user.id, is_active=True
+        ).first()
+
+        if not opt:
+            return {"ok": False, "error": "Bucket option not found."}, 404
+
+        opt.is_active = False
+        opt.deleted_at = datetime.utcnow()
+        db.session.commit()
+
+        return {"ok": True}
+
+
+    @app.post("/api/expenses/merchant/delete/<int:opt_id>")
+    def api_delete_expense_merchant(opt_id):
+        user = get_current_user()
+
+        opt = ExpenseMerchantOption.query.filter_by(
+            id=opt_id, user_id=user.id, is_active=True
+        ).first()
+
+        if not opt:
+            return {"ok": False, "error": "Merchant option not found."}, 404
+
+        opt.is_active = False
+        opt.deleted_at = datetime.utcnow()
+        db.session.commit()
+
+        return {"ok": True}
+
+
+    @app.post("/api/savings/bucket/delete/<int:opt_id>")
+    def api_delete_savings_bucket(opt_id):
+        user = get_current_user()
+
+        opt = SavingsBucketOption.query.filter_by(
+            id=opt_id, user_id=user.id, is_active=True
+        ).first()
+
+        if not opt:
+            return {"ok": False, "error": "Bucket option not found."}, 404
+
+        opt.is_active = False
+        opt.deleted_at = datetime.utcnow()
+        db.session.commit()
+
+        return {"ok": True}
+
+
+    @app.post("/api/savings/name/delete/<int:opt_id>")
+    def api_delete_savings_name(opt_id):
+        user = get_current_user()
+
+        opt = SavingsNameOption.query.filter_by(
+            id=opt_id, user_id=user.id, is_active=True
+        ).first()
+
+        if not opt:
+            return {"ok": False, "error": "Name option not found."}, 404
+
+        opt.is_active = False
+        opt.deleted_at = datetime.utcnow()
+        db.session.commit()
+
+        return {"ok": True}
+
 
     # ==================================================================
     # ROUTE: Monthly Income Summary
@@ -177,9 +263,9 @@ def create_app():
     def expenses_month_view(year, month):
         user = get_current_user()
 
-        # --------------------------------------------------------------
-        # 1) Pull income totals FIRST (for Money Left calculation)
-        # --------------------------------------------------------------
+        # ------------------------------------------------------------------
+        # 1) Compute totals (same as before)
+        # ------------------------------------------------------------------
         income_entries = (
             IncomeWeek.query
             .filter_by(user_id=user.id, year=year, month=month)
@@ -188,30 +274,73 @@ def create_app():
         total_gross = sum(e.gross for e in income_entries)
         total_net = sum(e.net for e in income_entries)
 
-        # --------------------------------------------------------------
-        # 2) POST: Save Expenses (3B - "do NOT delete, soft-delete instead")
-        # --------------------------------------------------------------
+        expenses = (
+            Expense.query
+            .filter_by(user_id=user.id, year=year, month=month, is_active=True)
+            .order_by(Expense.id)
+            .all()
+        )
+        total_spent = sum(x.cost for x in expenses)
+        money_left = total_net - total_spent
+
+        # ------------------------------------------------------------------
+        # 2) Built-in bucket list (your default dropdown options)
+        #     - Keep this list as your "base" categories.
+        #     - Custom buckets get appended from DB.
+        # ------------------------------------------------------------------
+        builtin_expense_buckets = [
+            "Subscriptions",
+            "Utilities",
+            "Groceries",
+            "Eating Out",
+            "Gas",
+            "Car",
+            "Rent / Mortgage",
+            "Insurance",
+            "Pet Care",
+            "Health",
+            "Shopping",
+            "Entertainment",
+            "Other",
+        ]
+
+        # ------------------------------------------------------------------
+        # 3) Load custom options from DB (for dropdown reuse)
+        # ------------------------------------------------------------------
+        custom_expense_buckets = (
+            ExpenseBucketOption.query
+            .filter_by(user_id=user.id, is_active=True)
+            .order_by(ExpenseBucketOption.label.asc())
+            .all()
+        )
+
+        custom_bucket_id_to_label = {str(o.id): o.label for o in custom_expense_buckets}
+
+        custom_merchants = (
+            ExpenseMerchantOption.query
+            .filter_by(user_id=user.id, is_active=True)
+            .order_by(ExpenseMerchantOption.bucket_label.asc(), ExpenseMerchantOption.name.asc())
+            .all()
+        )
+
+        # Build dict: bucket_label -> [{id, name}, ...]
+        expense_merchants_by_bucket = {}
+        for m in custom_merchants:
+            expense_merchants_by_bucket.setdefault(m.bucket_label, []).append(
+                {"id": m.id, "name": m.name}
+            )
+
+        # ------------------------------------------------------------------
+        # 4) POST: Save expenses + auto-create new options when "Other…" used
+        # ------------------------------------------------------------------
         if request.method == "POST":
-            """
-            The form submits 4 parallel lists (row index is the key):
-              - expense_id[]   (hidden input; blank for new rows)
-              - category[]     (dropdown)
-              - description[]  (free text)
-              - cost[]         (money)
-
-            New behavior (3B):
-              - If expense_id exists -> update that row
-              - If expense_id blank  -> create new row
-              - Any previously-active rows NOT included in the submission
-                -> soft-delete (is_active=False, deleted_at timestamp)
-            """
-
             expense_ids = request.form.getlist("expense_id[]")
-            categories = request.form.getlist("category[]")
-            descriptions = request.form.getlist("description[]")
+            bucket_selects = request.form.getlist("bucket_select[]")
+            bucket_other_texts = request.form.getlist("bucket_other_text[]")
+            merchant_selects = request.form.getlist("merchant_select[]")
+            merchant_other_texts = request.form.getlist("merchant_other_text[]")
             costs = request.form.getlist("cost[]")
 
-            # Load all currently-active expenses for that month into a dict by id
             existing_active = (
                 Expense.query
                 .filter_by(user_id=user.id, year=year, month=month, is_active=True)
@@ -220,189 +349,174 @@ def create_app():
             )
             existing_by_id = {str(e.id): e for e in existing_active}
 
+            submitted_ids = set()
             now = datetime.utcnow()
-            submitted_ids = set()     # expense IDs we updated/kept
+
             warnings = 0
             saved_count = 0
 
-            # Loop row-by-row (keep row alignment using zip)
-            for row_idx, (eid, category, description, cost) in enumerate(
-                zip(expense_ids, categories, descriptions, costs),
-                start=1
+            for (eid, bsel, bother, msel, mother, cost_str) in zip(
+                expense_ids, bucket_selects, bucket_other_texts, merchant_selects, merchant_other_texts, costs
             ):
                 eid = (eid or "").strip()
                 if eid:
                     submitted_ids.add(eid)
-                category = (category or "").strip() or None
-                description = (description or "").strip() or None
-                cost = (cost or "").strip()
 
-                # Blank row: skip
-                if (not eid) and (category is None) and (description is None) and (cost == ""):
+                bsel = (bsel or "").strip()
+                bother = (bother or "").strip()
+                msel = (msel or "").strip()
+                mother = (mother or "").strip()
+                cost_str = (cost_str or "").strip()
+
+                # Skip fully blank row
+                if (not eid) and (not bsel) and (not bother) and (not msel) and (not mother) and (cost_str == ""):
                     continue
 
-                # Must have a cost if anything else is filled
-                if cost == "":
+                # Cost is required for a meaningful expense row
+                if cost_str == "":
                     warnings += 1
                     continue
 
                 try:
-                    cost_value = float(cost)
+                    cost_val = float(cost_str)
                 except ValueError:
                     warnings += 1
                     continue
 
-                if cost_value < 0:
+                if cost_val < 0:
                     warnings += 1
                     continue
 
-                cost_value = round(cost_value, 2)
+                cost_val = round(cost_val, 2)
 
-                # Require at least category OR description so analytics isn't garbage
-                if category is None and description is None:
+                # ----------------------------------------------------------
+                # Resolve BUCKET LABEL
+                # ----------------------------------------------------------
+                bucket_label = None
+
+                if bsel == "__other__":
+                    # User typed a new bucket label
+                    if not bother:
+                        warnings += 1
+                        continue
+                    bucket_label = bother
+
+                    # Create reusable bucket option if it doesn't already exist
+                    exists = ExpenseBucketOption.query.filter_by(
+                        user_id=user.id, label=bucket_label, is_active=True
+                    ).first()
+                    if not exists:
+                        db.session.add(ExpenseBucketOption(user_id=user.id, label=bucket_label))
+
+                elif bsel.startswith("opt:"):
+                    # Custom bucket selected
+                    opt_id = bsel.split(":", 1)[1]
+                    bucket_label = custom_bucket_id_to_label.get(opt_id)
+
+                    if not bucket_label:
+                        warnings += 1
+                        continue
+
+                else:
+                    # Built-in bucket (or blank)
+                    bucket_label = bsel or None
+
+                # ----------------------------------------------------------
+                # Resolve MERCHANT NAME (stored in Expense.description)
+                # ----------------------------------------------------------
+                merchant_name = None
+
+                if msel == "__other__":
+                    if not mother:
+                        warnings += 1
+                        continue
+                    merchant_name = mother
+
+                    # Create reusable merchant option if not exists, scoped to bucket_label
+                    # NOTE: If bucket_label is None, we still allow it, but it won't be very useful.
+                    scope_label = bucket_label or "Uncategorized"
+                    exists = ExpenseMerchantOption.query.filter_by(
+                        user_id=user.id, bucket_label=scope_label, name=merchant_name, is_active=True
+                    ).first()
+                    if not exists:
+                        db.session.add(
+                            ExpenseMerchantOption(
+                                user_id=user.id,
+                                bucket_label=scope_label,
+                                name=merchant_name,
+                            )
+                        )
+
+                elif msel.startswith("opt:"):
+                    opt_id = msel.split(":", 1)[1]
+                    opt = ExpenseMerchantOption.query.filter_by(
+                        id=int(opt_id), user_id=user.id, is_active=True
+                    ).first()
+                    if not opt:
+                        warnings += 1
+                        continue
+                    merchant_name = opt.name
+
+                else:
+                    # If merchant select is blank, allow merchant_other_text if user typed anyway (rare).
+                    # Otherwise merchant stays None.
+                    merchant_name = mother or None
+
+                # If both bucket and merchant are missing, skip row (nothing to save)
+                if bucket_label is None and (merchant_name is None or merchant_name.strip() == ""):
                     warnings += 1
                     continue
 
-                # --------------------------
-                # UPDATE existing row
-                # --------------------------
+                # ----------------------------------------------------------
+                # UPDATE or CREATE expense
+                # ----------------------------------------------------------
                 if eid and eid in existing_by_id:
                     exp = existing_by_id[eid]
-                    exp.category = category
-                    exp.description = description
-                    exp.cost = cost_value
+                    exp.category = bucket_label
+                    exp.description = merchant_name
+                    exp.cost = cost_val
+                    exp.updated_at = now
                     exp.is_active = True
                     exp.deleted_at = None
-
-                    # If your model has updated_at, keep this:
-                    if hasattr(exp, "updated_at"):
-                        exp.updated_at = now
-
-                    
                     saved_count += 1
-                    continue
-
-                # --------------------------
-                # CREATE new row
-                # --------------------------
-                new_exp = Expense(
-                    user_id=user.id,
-                    year=year,
-                    month=month,
-                    category=category,
-                    description=description,
-                    cost=cost_value,
-                    is_active=True,
-                    deleted_at=None,
-                )
-
-                # If your model has created_at/updated_at, keep these:
-                if hasattr(new_exp, "created_at") and new_exp.created_at is None:
+                else:
+                    new_exp = Expense(
+                        user_id=user.id,
+                        year=year,
+                        month=month,
+                        category=bucket_label,
+                        description=merchant_name,
+                        cost=cost_val,
+                        is_active=True,
+                        deleted_at=None,
+                    )
                     new_exp.created_at = now
-                if hasattr(new_exp, "updated_at"):
                     new_exp.updated_at = now
+                    db.session.add(new_exp)
+                    saved_count += 1
 
-                db.session.add(new_exp)
-                saved_count += 1
-
-            # --------------------------------------------------------------
-            # Soft-delete anything that was previously active but NOT submitted
-            # --------------------------------------------------------------
+            # Soft-delete anything that existed but wasn't submitted this time
             for exp in existing_active:
-                exp_id_str = str(exp.id)
-                if exp_id_str not in submitted_ids:
+                if str(exp.id) not in submitted_ids:
                     exp.is_active = False
                     exp.deleted_at = now
-                    if hasattr(exp, "updated_at"):
-                        exp.updated_at = now
+                    exp.updated_at = now
 
             db.session.commit()
 
-            # UI messages
-            if saved_count == 0:
-                flash("No valid expense rows found. Nothing saved.", "warning")
-            else:
+            if saved_count > 0:
                 flash(f"Saved {saved_count} expense row(s).", "success")
+            else:
+                flash("No valid expense rows found. Nothing saved.", "warning")
 
             if warnings > 0:
                 flash(f"Skipped {warnings} row(s) because they were incomplete or invalid.", "warning")
 
             return redirect(url_for("expenses_month_view", year=year, month=month))
 
-        # --------------------------------------------------------------
-        # 3) GET: show page
-        # --------------------------------------------------------------
-        expenses = (
-            Expense.query
-            .filter_by(user_id=user.id, year=year, month=month, is_active=True)
-            .order_by(Expense.id)
-            .all()
-        )
-
-        total_spent = sum(x.cost for x in expenses)
-        money_left = total_net - total_spent
-
-        # Category dropdown list
-        expense_categories = [
-            # Housing & Utilities
-            "Electricity Bill",
-            "Homeowners/Renters Insurance",
-            "Internet",
-            "Rent/Mortgage",
-            "Utilities",
-            "Water Bill",
-
-            # Food & Dining
-            "Eating Out",
-            "Groceries",
-
-            # Transportation
-            "Car Insurance",
-            "Car Payment",
-            "Gas",
-            "Motorcycle Insurance",
-            "Motorcycle Payment",
-            "Transportation",
-
-            # Health & Medical
-            "Dental Insurance",
-            "Disability Insurance",
-            "Health Insurance",
-            "Long-term Care Insurance",
-            "Medical",
-            "Vision Insurance",
-
-            # Insurance (Non-Health)
-            "Liability Insurance",
-            "Life Insurance",
-
-            # Pets
-            "Pet Care",
-            "Pet Food",
-            "Pet Insurance",
-            "Pet Surgery",
-
-            # Personal & Lifestyle
-            "Clothing",
-            "Entertainment",
-            "Gym Membership",
-            "Subscriptions",
-
-            # Education & Childcare
-            "Childcare",
-            "School",
-            "Student Loans",
-
-            # Debt & Financial
-            "Credit Card Debt",
-            "Credit Card Payments",
-            "Debt",
-            "Loans",
-
-            # Misc
-            "Other",
-        ]
-
+        # ------------------------------------------------------------------
+        # 5) GET: Render template
+        # ------------------------------------------------------------------
         return render_template(
             "expenses/month_view.html",
             year=year,
@@ -412,10 +526,14 @@ def create_app():
             expenses=expenses,
             total_spent=total_spent,
             money_left=money_left,
-            expense_categories=expense_categories,
+            builtin_expense_buckets=builtin_expense_buckets,
+            custom_expense_buckets=custom_expense_buckets,
+            expense_merchant_options_by_bucket_json=expense_merchants_by_bucket,
+            expense_custom_bucket_id_to_label_json=custom_bucket_id_to_label,
         )
+
     
-        # ==================================================================
+    # ==================================================================
     # ROUTE: SAVINGS - Select Month
     # ==================================================================
     @app.route("/savings/select")
@@ -458,18 +576,11 @@ def create_app():
     # ==================================================================
     @app.route("/savings/<int:year>/<int:month>", methods=["GET", "POST"])
     def savings_month_view(year, month):
-        """Savings page: allocate leftover money from expenses using percentages."""
-
         user = get_current_user()
 
         # --------------------------------------------------------------
-        # 1) Calculate the "leftover" money for this month
+        # Compute money_left (same as before)
         # --------------------------------------------------------------
-        # We reuse the exact logic you already trust on the Expenses page:
-        #   - sum monthly NET income
-        #   - subtract all ACTIVE expenses
-        # The result is the budget amount available for savings allocations.
-
         income_entries = (
             IncomeWeek.query
             .filter_by(user_id=user.id, year=year, month=month)
@@ -484,33 +595,51 @@ def create_app():
         )
         total_spent = sum(x.cost for x in expenses)
 
-        # This is the base amount that the Savings table allocates.
         money_left = total_net - total_spent
 
         # --------------------------------------------------------------
-        # 2) POST: Save Savings Allocations (mirrors expenses save logic)
+        # Built-in savings buckets
+        # --------------------------------------------------------------
+        builtin_savings_buckets = [
+            "Emergency Fund",
+            "Retirement",
+            "Investments",
+            "Debt Payoff",
+            "Big Purchase Fund",
+            "Travel Fund",
+            "Other",
+        ]
+
+        # --------------------------------------------------------------
+        # Load custom bucket + name options
+        # --------------------------------------------------------------
+        custom_savings_buckets = (
+            SavingsBucketOption.query
+            .filter_by(user_id=user.id, is_active=True)
+            .order_by(SavingsBucketOption.label.asc())
+            .all()
+        )
+        custom_bucket_id_to_label = {str(o.id): o.label for o in custom_savings_buckets}
+
+        custom_names = (
+            SavingsNameOption.query
+            .filter_by(user_id=user.id, is_active=True)
+            .order_by(SavingsNameOption.bucket_label.asc(), SavingsNameOption.name.asc())
+            .all()
+        )
+        names_by_bucket = {}
+        for n in custom_names:
+            names_by_bucket.setdefault(n.bucket_label, []).append({"id": n.id, "name": n.name})
+
+        # --------------------------------------------------------------
+        # POST save
         # --------------------------------------------------------------
         if request.method == "POST":
-            """
-            The Savings form submits 4 parallel lists (row alignment matters):
-              - allocation_id[]  (hidden input; blank for new rows)
-              - bucket[]         (dropdown)
-              - name[]           (free text w/ suggestions)
-              - percent[]        (percent 0-100)
-
-            Save behavior (copy of Expenses rules):
-              - If allocation_id exists -> update that row
-              - If allocation_id blank  -> create new row
-              - Any previously-active rows NOT included in the submission
-                -> soft-delete (is_active=False + deleted_at timestamp)
-
-            NOTE: We store ONLY the percent.
-                  The dollar amount is derived live from `money_left`.
-            """
-
             allocation_ids = request.form.getlist("allocation_id[]")
-            buckets = request.form.getlist("bucket[]")
-            names = request.form.getlist("name[]")
+            bucket_selects = request.form.getlist("bucket_select[]")
+            bucket_other_texts = request.form.getlist("bucket_other_text[]")
+            name_selects = request.form.getlist("name_select[]")
+            name_other_texts = request.form.getlist("name_other_text[]")
             percents = request.form.getlist("percent[]")
 
             existing_active = (
@@ -521,107 +650,148 @@ def create_app():
             )
             existing_by_id = {str(a.id): a for a in existing_active}
 
-            now = datetime.utcnow()
             submitted_ids = set()
+            now = datetime.utcnow()
+
             warnings = 0
             saved_count = 0
-            # NEW: track total percent for this submission
+
             total_percent_submitted = 0.0
 
-            for row_idx, (aid, bucket, name, percent) in enumerate(
-                zip(allocation_ids, buckets, names, percents),
-                start=1
+            for (aid, bsel, bother, nsel, nother, pstr) in zip(
+                allocation_ids, bucket_selects, bucket_other_texts, name_selects, name_other_texts, percents
             ):
-                # Normalize inputs (strip whitespace, convert blanks -> None)
                 aid = (aid or "").strip()
                 if aid:
                     submitted_ids.add(aid)
 
-                bucket = (bucket or "").strip() or None
-                name = (name or "").strip() or None
-                percent = (percent or "").strip()
+                bsel = (bsel or "").strip()
+                bother = (bother or "").strip()
+                nsel = (nsel or "").strip()
+                nother = (nother or "").strip()
+                pstr = (pstr or "").strip()
 
-                # Completely blank row: skip
-                if (not aid) and (bucket is None) and (name is None) and (percent == ""):
+                # Skip blank row
+                if (not aid) and (not bsel) and (not bother) and (not nsel) and (not nother) and (pstr == ""):
                     continue
 
-                # If the user started a row, we REQUIRE a percent.
-                if percent == "":
+                if pstr == "":
                     warnings += 1
                     continue
 
                 try:
-                    percent_value = float(percent)
+                    pval = float(pstr)
                 except ValueError:
                     warnings += 1
                     continue
 
-                # Basic validation for sanity + UI consistency
-                if percent_value < 0 or percent_value > 100:
+                if pval < 0 or pval > 100:
                     warnings += 1
                     continue
 
-                percent_value = round(percent_value, 2)
+                pval = round(pval, 2)
+                total_percent_submitted += pval
 
-                # NEW: add to total percent as we accept rows
-                total_percent_submitted += percent_value
-
-                # NEW: if we exceed 100 at any point, stop and do NOT save anything
+                # HARD RULE: cannot exceed 100%
                 if total_percent_submitted > 100:
                     flash("Savings allocations cannot exceed 100%. Please lower your percentages.", "error")
                     return redirect(url_for("savings_month_view", year=year, month=month))
 
-                # Require at least bucket OR name so analytics isn't garbage
-                if bucket is None and name is None:
+                # Resolve bucket label
+                bucket_label = None
+
+                if bsel == "__other__":
+                    if not bother:
+                        warnings += 1
+                        continue
+                    bucket_label = bother
+
+                    exists = SavingsBucketOption.query.filter_by(
+                        user_id=user.id, label=bucket_label, is_active=True
+                    ).first()
+                    if not exists:
+                        db.session.add(SavingsBucketOption(user_id=user.id, label=bucket_label))
+
+                elif bsel.startswith("opt:"):
+                    opt_id = bsel.split(":", 1)[1]
+                    bucket_label = custom_bucket_id_to_label.get(opt_id)
+                    if not bucket_label:
+                        warnings += 1
+                        continue
+                else:
+                    bucket_label = bsel or None
+
+                # Resolve name
+                name_value = None
+
+                if nsel == "__other__":
+                    if not nother:
+                        warnings += 1
+                        continue
+                    name_value = nother
+
+                    scope = bucket_label or "Uncategorized"
+                    exists = SavingsNameOption.query.filter_by(
+                        user_id=user.id, bucket_label=scope, name=name_value, is_active=True
+                    ).first()
+                    if not exists:
+                        db.session.add(SavingsNameOption(user_id=user.id, bucket_label=scope, name=name_value))
+
+                elif nsel.startswith("opt:"):
+                    opt_id = nsel.split(":", 1)[1]
+                    opt = SavingsNameOption.query.filter_by(
+                        id=int(opt_id), user_id=user.id, is_active=True
+                    ).first()
+                    if not opt:
+                        warnings += 1
+                        continue
+                    name_value = opt.name
+                else:
+                    name_value = nother or None
+
+                if bucket_label is None and (name_value is None or name_value.strip() == ""):
                     warnings += 1
                     continue
 
-                # --------------------------
-                # UPDATE existing row
-                # --------------------------
+                # Update or create allocation
                 if aid and aid in existing_by_id:
                     alloc = existing_by_id[aid]
-                    alloc.bucket = bucket
-                    alloc.name = name
-                    alloc.percent = percent_value
+                    alloc.bucket = bucket_label
+                    alloc.name = name_value
+                    alloc.percent = pval
                     alloc.is_active = True
                     alloc.deleted_at = None
                     alloc.updated_at = now
                     saved_count += 1
-                    continue
+                else:
+                    new_alloc = SavingsAllocation(
+                        user_id=user.id,
+                        year=year,
+                        month=month,
+                        bucket=bucket_label,
+                        name=name_value,
+                        percent=pval,
+                        is_active=True,
+                        deleted_at=None,
+                    )
+                    new_alloc.created_at = now
+                    new_alloc.updated_at = now
+                    db.session.add(new_alloc)
+                    saved_count += 1
 
-                # --------------------------
-                # CREATE new row
-                # --------------------------
-                new_alloc = SavingsAllocation(
-                    user_id=user.id,
-                    year=year,
-                    month=month,
-                    bucket=bucket,
-                    name=name,
-                    percent=percent_value,
-                    is_active=True,
-                    deleted_at=None,
-                )
-                new_alloc.created_at = now
-                new_alloc.updated_at = now
-                db.session.add(new_alloc)
-                saved_count += 1
-
-            # Soft-delete anything that used to be active but wasn't submitted
+            # Soft-delete removed rows
             for alloc in existing_active:
-                alloc_id_str = str(alloc.id)
-                if alloc_id_str not in submitted_ids:
+                if str(alloc.id) not in submitted_ids:
                     alloc.is_active = False
                     alloc.deleted_at = now
                     alloc.updated_at = now
 
             db.session.commit()
 
-            if saved_count == 0:
-                flash("No valid savings rows found. Nothing saved.", "warning")
-            else:
+            if saved_count > 0:
                 flash(f"Saved {saved_count} savings row(s).", "success")
+            else:
+                flash("No valid savings rows found. Nothing saved.", "warning")
 
             if warnings > 0:
                 flash(f"Skipped {warnings} row(s) because they were incomplete or invalid.", "warning")
@@ -629,7 +799,7 @@ def create_app():
             return redirect(url_for("savings_month_view", year=year, month=month))
 
         # --------------------------------------------------------------
-        # 3) GET: show page
+        # GET render
         # --------------------------------------------------------------
         allocations = (
             SavingsAllocation.query
@@ -638,56 +808,25 @@ def create_app():
             .all()
         )
 
-        # Total percent allocated (used to compute totals)
         total_percent = sum(a.percent for a in allocations)
-
-        # Dollar totals are derived from the current money_left.
-        # (If expenses change later, savings amounts update automatically.)
         total_saved = money_left * (total_percent / 100.0)
         savings_leftover = money_left - total_saved
-
-        # Dropdown buckets (customize these anytime)
-        savings_buckets = [
-            "Emergency Fund",
-            "Retirement",
-            "Brokerage / Investing",
-            "Debt Payoff",
-            "Big Purchase Fund",
-            "Travel Fund",
-            "Other",
-        ]
-
-        # For the "name" field suggestions, we pull prior names by bucket.
-        # We ship this to the template so it can populate <datalist> options.
-        existing_names_by_bucket = {}
-        for b in savings_buckets:
-            names_for_bucket = (
-                db.session.query(SavingsAllocation.name)
-                .filter(
-                    SavingsAllocation.user_id == user.id,
-                    SavingsAllocation.bucket == b,
-                    SavingsAllocation.name.isnot(None),
-                )
-                .distinct()
-                .order_by(SavingsAllocation.name)
-                .all()
-            )
-            existing_names_by_bucket[b] = [n[0] for n in names_for_bucket]
 
         return render_template(
             "savings/month_view.html",
             year=year,
             month=month,
-            total_net=total_net,
-            total_spent=total_spent,
             money_left=money_left,
             allocations=allocations,
+            builtin_savings_buckets=builtin_savings_buckets,
+            custom_savings_buckets=custom_savings_buckets,
+            savings_name_options_by_bucket_json=names_by_bucket,
+            savings_custom_bucket_id_to_label_json=custom_bucket_id_to_label,
             total_percent=total_percent,
             total_saved=total_saved,
             savings_leftover=savings_leftover,
-            savings_buckets=savings_buckets,
-            existing_names_by_bucket=existing_names_by_bucket,
         )
+
 
 
     # ==================================================================
@@ -749,6 +888,63 @@ def create_app():
             return redirect(url_for("income_select_month"))
 
         return redirect(url_for("income_month_view", year=int(year), month=int(month)))
+    
+
+    # ===================================================================
+    # API: Delete custom dropdown options (soft-delete)
+    # ===================================================================
+
+    @app.post("/api/expenses/bucket/delete/<int:opt_id>")
+    def delete_expense_bucket(opt_id):
+        user = get_current_user()
+        opt = ExpenseBucketOption.query.filter_by(id=opt_id, user_id=user.id, is_active=True).first()
+        if not opt:
+            return {"ok": False, "error": "Not found"}, 404
+
+        opt.is_active = False
+        opt.deleted_at = datetime.utcnow()
+        db.session.commit()
+        return {"ok": True}
+
+
+    @app.post("/api/expenses/merchant/delete/<int:opt_id>")
+    def delete_expense_merchant(opt_id):
+        user = get_current_user()
+        opt = ExpenseMerchantOption.query.filter_by(id=opt_id, user_id=user.id, is_active=True).first()
+        if not opt:
+            return {"ok": False, "error": "Not found"}, 404
+
+        opt.is_active = False
+        opt.deleted_at = datetime.utcnow()
+        db.session.commit()
+        return {"ok": True}
+
+
+    @app.post("/api/savings/bucket/delete/<int:opt_id>")
+    def delete_savings_bucket(opt_id):
+        user = get_current_user()
+        opt = SavingsBucketOption.query.filter_by(id=opt_id, user_id=user.id, is_active=True).first()
+        if not opt:
+            return {"ok": False, "error": "Not found"}, 404
+
+        opt.is_active = False
+        opt.deleted_at = datetime.utcnow()
+        db.session.commit()
+        return {"ok": True}
+
+
+    @app.post("/api/savings/name/delete/<int:opt_id>")
+    def delete_savings_name(opt_id):
+        user = get_current_user()
+        opt = SavingsNameOption.query.filter_by(id=opt_id, user_id=user.id, is_active=True).first()
+        if not opt:
+            return {"ok": False, "error": "Not found"}, 404
+
+        opt.is_active = False
+        opt.deleted_at = datetime.utcnow()
+        db.session.commit()
+        return {"ok": True}
+
 
     return app
 

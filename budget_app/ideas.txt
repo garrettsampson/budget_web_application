@@ -7,22 +7,23 @@ Finish Expenses Part 3 (Persistence & History)
   - Optional restore button for deleted expenses
 - When resuming, start by reviewing current app.py + models.py to confirm 3B is stable before touching templates.
 
-Bug: Newly added expense rows disappear after Save
-- When using "Add Expense", the new row appears visually offcentered
-- After entering data and clicking Save, the row is not persisted
-- After row disappears the total money spent still stays affected as if the data is saved but not visible
-- Likely cause:
-  - JS-added rows missing one or more required form fields:
-    - name="expense_id[]"
-    - name="category[]"
-    - name="description[]"
-    - name="cost[]"
-  - OR mismatch between table columns and backend zip() logic
-- Needs:
-  - Review addExpenseRow() JS
-  - Ensure JS-generated rows exactly match saved-row structure
-  - Verify all parallel lists submit same length
-- This is a 3B follow-up bug, NOT 3C
+Fixed:
+      Bug: Newly added expense rows disappear after Save
+      - When using "Add Expense", the new row appears visually offcentered
+      - After entering data and clicking Save, the row is not persisted
+      - After row disappears the total money spent still stays affected as if the data is saved but not visible
+      - Likely cause:
+        - JS-added rows missing one or more required form fields:
+          - name="expense_id[]"
+          - name="category[]"
+          - name="description[]"
+          - name="cost[]"
+        - OR mismatch between table columns and backend zip() logic
+      - Needs:
+        - Review addExpenseRow() JS
+        - Ensure JS-generated rows exactly match saved-row structure
+        - Verify all parallel lists submit same length
+      - This is a 3B follow-up bug, NOT 3C
 
 The user needs to be able to enter in their paychecks as normal instead of having to enter tax, hours, etc. 
 The user also needs to be able to select when they get paid, like every 2 weeks on a thursday that way you are entering in

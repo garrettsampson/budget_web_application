@@ -3,66 +3,48 @@
 
    PURPOSE
    -------
-   Savings allocation page (copy of Expenses layout) for a chosen month/year.
+   Savings allocation editor for a specific month/year.
 
-   It shows:
-   - Total Net Income (from income entries)
-   - Total Expenses   (active expenses)
-   - Money Left       = total_net - total_spent  <-- this is what we allocate
+   INPUT ARRAYS (parallel lists):
+   ------------------------------
+     allocation_id[]         hidden; blank means new row
+     bucket_select[]         dropdown; builtin, opt:<id>, or __other__
+     bucket_other_text[]     text used only if bucket_select == __other__
+     name_select[]           dropdown; opt:<id> or __other__
+     name_other_text[]       text used only if name_select == __other__
+     percent[]               number
 
-   Then it shows a spreadsheet-like table:
-     Bucket | Name | Percent (%) | Amount ($) | Row(Remove)
-
-   IMPORTANT:
-   ---------
-   We store ONLY percent in the database.
-   The Amount ($) is computed live like:
-     row_amount = money_left * (percent / 100)
-
-   FORM NAME RULES (parallel lists):
-   --------------------------------
-   allocation_id[]  -> hidden DB id for updates (blank means INSERT new)
-   bucket[]         -> dropdown bucket/category
-   name[]           -> free text name within bucket
-   percent[]        -> numeric percent
-
-   THEMING
-   -------
-   This file matches the Expenses styling:
-     - Tailwind utility classes
-     - inline styles using your theme variables
+   RULE:
+   -----
+   Total percent cannot exceed 100% (front-end + back-end enforcement).
 ============================================================================ #}
 
 {% extends "base.html" %}
 {% block content %}
 
-<!-- PAGE TITLE -->
 <h2 class="text-2xl font-bold mb-4" style="color: var(--color-text);">
   Savings for {{ month }}/{{ year }}
 </h2>
 
-<!-- SUMMARY CARD (matches Expenses income card style) -->
+<!-- SIMPLE SUMMARY CARD (only leftover, per your request) -->
 <div class="shadow rounded-lg p-6 mb-6"
      style="background-color: var(--color-card-bg); border: 1px solid var(--color-border);">
   <h3 class="text-xl font-semibold mb-2" style="color: var(--color-text);">
-    Available Money for Savings Allocations (Leftover)
+    Left to Allocate
   </h3>
 
   <p class="text-sm mb-3" style="color: var(--color-text-secondary);">
-    Savings uses the money left after expenses. Percent allocations are based on this leftover amount.
+    Your savings percentages are based on the money left after expenses.
   </p>
 
   <ul class="space-y-1 text-sm">
     <li>
-        <strong style="color: var(--color-text);">Left to Allocate:</strong>
-        <span style="color: var(--color-text-secondary);">
-        {{ "%.2f"|format(money_left) }}
-        </span>
+      <strong style="color: var(--color-text);">Left to Allocate:</strong>
+      <span style="color: var(--color-text-secondary);">{{ "%.2f"|format(money_left) }}</span>
     </li>
-    </ul>
+  </ul>
 </div>
 
-<!-- SAVINGS EDITOR CARD (matches Expenses editor card style) -->
 <div class="shadow rounded-lg p-6"
      style="background-color: var(--color-card-bg); border: 1px solid var(--color-border);">
 
@@ -71,89 +53,122 @@
       Monthly Savings Allocations (Percent-Based)
     </h3>
 
-    <!-- Add Savings row button -->
     <button type="button" id="add-savings-btn" class="btn-secondary">
       Add Savings
     </button>
   </div>
 
   <p class="text-sm mb-4" style="color: var(--color-text-secondary);">
-    Choose a bucket, enter a name, and enter a percent. The dollar amount is calculated automatically.
-    Press <strong>Save Savings</strong> when finished.
+    Choose a bucket and name. If you choose <strong>Other…</strong>, type a new one and it will be saved for future use.
   </p>
 
-  <!-- FORM: submits all allocations at once -->
-  <form method="POST">
+  <form method="POST" id="savings-form">
     <div class="overflow-x-auto">
       <table class="min-w-full rounded-lg overflow-hidden"
              style="border: 1px solid var(--color-border);">
 
-        <!-- TABLE HEADER -->
         <thead style="background-color: var(--color-card-bg);">
           <tr style="border-bottom: 1px solid var(--color-border);">
-            <th class="px-4 py-3 text-left text-sm font-semibold"
-                style="color: var(--color-text); width: 220px;">
+            <th class="px-4 py-3 text-left text-sm font-semibold" style="color: var(--color-text); width: 260px;">
               Bucket
             </th>
-            <th class="px-4 py-3 text-left text-sm font-semibold"
-                style="color: var(--color-text);">
+            <th class="px-4 py-3 text-left text-sm font-semibold" style="color: var(--color-text);">
               Name
             </th>
-            <th class="px-4 py-3 text-left text-sm font-semibold"
-                style="color: var(--color-text); width: 160px;">
+            <th class="px-4 py-3 text-left text-sm font-semibold" style="color: var(--color-text); width: 160px;">
               Percent (%)
             </th>
-            <th class="px-4 py-3 text-left text-sm font-semibold"
-                style="color: var(--color-text); width: 180px;">
+            <th class="px-4 py-3 text-left text-sm font-semibold" style="color: var(--color-text); width: 180px;">
               Amount ($)
             </th>
-            <th class="px-4 py-3 text-left text-sm font-semibold"
-                style="color: var(--color-text); width: 110px;">
+            <th class="px-4 py-3 text-left text-sm font-semibold" style="color: var(--color-text); width: 110px;">
               Row
             </th>
           </tr>
         </thead>
 
-        <!-- TABLE BODY -->
         <tbody id="savings-body">
-          {# ------------------------------------------------------------
-             1) Render all saved allocations first
-             ------------------------------------------------------------ #}
           {% for a in allocations %}
           <tr style="border-bottom: 1px solid var(--color-border);">
-            <!-- Hidden ID tells backend: "update this record" -->
             <input type="hidden" name="allocation_id[]" value="{{ a.id }}">
 
-            <!-- Bucket -->
+            <!-- Bucket select -->
             <td class="px-4 py-2">
-              <select
-                name="bucket[]"
-                class="w-full rounded px-2 py-2"
-                style="background-color: var(--color-input-bg);
-                       border: 1px solid var(--color-border);
-                       color: var(--color-text);"
-              >
-                <option value="">Pick…</option>
-                {% for b in savings_buckets %}
-                  <option value="{{ b }}" {% if a.bucket == b %}selected{% endif %}>
-                    {{ b }}
-                  </option>
-                {% endfor %}
-              </select>
-            </td>
+              <div class="flex items-center gap-2">
+                <select
+                  name="bucket_select[]"
+                  class="savings-bucket-select w-full rounded px-2 py-2"
+                  style="background-color: var(--color-input-bg);
+                         border: 1px solid var(--color-border);
+                         color: var(--color-text);"
+                >
+                  <option value="" {% if not a.bucket %}selected{% endif %}>Pick…</option>
 
-            <!-- Name -->
-            <td class="px-4 py-2">
+                  {% for label in builtin_savings_buckets %}
+                    <option value="{{ label }}" {% if a.bucket == label %}selected{% endif %}>{{ label }}</option>
+                  {% endfor %}
+
+                  {% for opt in custom_savings_buckets %}
+                    <option value="opt:{{ opt.id }}" {% if a.bucket == opt.label %}selected{% endif %}>{{ opt.label }}</option>
+                  {% endfor %}
+
+                  <option value="__other__">Other…</option>
+                </select>
+
+                <button type="button"
+                        class="savings-bucket-delete btn-secondary"
+                        title="Delete this custom bucket"
+                        style="padding: 0.35rem 0.6rem; display: none;">
+                  ✕
+                </button>
+              </div>
+
               <input
                 type="text"
-                name="name[]"
-                value="{{ a.name or '' }}"
-                placeholder="e.g., Roth IRA, Emergency Fund"
-                class="w-full rounded px-3 py-2"
+                name="bucket_other_text[]"
+                class="savings-bucket-other w-full rounded px-3 py-2 mt-2"
+                placeholder="Type a new bucket"
+                value=""
                 style="background-color: var(--color-input-bg);
                        border: 1px solid var(--color-border);
-                       color: var(--color-text);"
+                       color: var(--color-text);
+                       display: none;"
               >
+            </td>
+
+            <!-- Name select -->
+            <td class="px-4 py-2">
+              <div class="flex items-center gap-2">
+                <select
+                  name="name_select[]"
+                  class="savings-name-select w-full rounded px-2 py-2"
+                  style="background-color: var(--color-input-bg);
+                         border: 1px solid var(--color-border);
+                         color: var(--color-text);"
+                ></select>
+
+                <button type="button"
+                        class="savings-name-delete btn-secondary"
+                        title="Delete this custom name"
+                        style="padding: 0.35rem 0.6rem; display: none;">
+                  ✕
+                </button>
+              </div>
+
+              <input
+                type="text"
+                name="name_other_text[]"
+                class="savings-name-other w-full rounded px-3 py-2 mt-2"
+                placeholder="Type a new name (example: 'Rental Property')"
+                value=""
+                style="background-color: var(--color-input-bg);
+                       border: 1px solid var(--color-border);
+                       color: var(--color-text);
+                       display: none;"
+              >
+
+              <input type="hidden" class="name-current" value="{{ a.name or '' }}">
+              <input type="hidden" class="bucket-current" value="{{ a.bucket or '' }}">
             </td>
 
             <!-- Percent -->
@@ -173,14 +188,12 @@
               >
             </td>
 
-            <!-- Amount (computed by JS, displayed here) -->
+            <!-- Amount -->
             <td class="px-4 py-2">
-              <span class="amount-display" style="color: var(--color-text-secondary);">
-                0.00
-              </span>
+              <span class="amount-display" style="color: var(--color-text-secondary);">0.00</span>
             </td>
 
-            <!-- Row actions -->
+            <!-- Row -->
             <td class="px-4 py-2">
               <button type="button"
                       class="text-sm font-semibold hover:underline"
@@ -192,9 +205,6 @@
           </tr>
           {% endfor %}
 
-          {# ------------------------------------------------------------
-             2) Add blank rows until we have at least 7 total rows visible
-             ------------------------------------------------------------ #}
           {% set needed_rows = 7 %}
           {% set existing_count = allocations|length %}
           {% set blanks = needed_rows - existing_count %}
@@ -205,53 +215,78 @@
             <input type="hidden" name="allocation_id[]" value="">
 
             <td class="px-4 py-2">
-              <select
-                name="bucket[]"
-                class="w-full rounded px-2 py-2"
-                style="background-color: var(--color-input-bg);
-                       border: 1px solid var(--color-border);
-                       color: var(--color-text);"
-              >
-                <option value="" selected>Pick…</option>
-                {% for b in savings_buckets %}
-                  <option value="{{ b }}">{{ b }}</option>
-                {% endfor %}
-              </select>
+              <div class="flex items-center gap-2">
+                <select name="bucket_select[]"
+                        class="savings-bucket-select w-full rounded px-2 py-2"
+                        style="background-color: var(--color-input-bg);
+                               border: 1px solid var(--color-border);
+                               color: var(--color-text);">
+                  <option value="" selected>Pick…</option>
+                  {% for label in builtin_savings_buckets %}
+                    <option value="{{ label }}">{{ label }}</option>
+                  {% endfor %}
+                  {% for opt in custom_savings_buckets %}
+                    <option value="opt:{{ opt.id }}">{{ opt.label }}</option>
+                  {% endfor %}
+                  <option value="__other__">Other…</option>
+                </select>
+
+                <button type="button"
+                        class="savings-bucket-delete btn-secondary"
+                        title="Delete this custom bucket"
+                        style="padding: 0.35rem 0.6rem; display: none;">✕</button>
+              </div>
+
+              <input type="text"
+                     name="bucket_other_text[]"
+                     class="savings-bucket-other w-full rounded px-3 py-2 mt-2"
+                     placeholder="Type a new bucket"
+                     value=""
+                     style="background-color: var(--color-input-bg);
+                            border: 1px solid var(--color-border);
+                            color: var(--color-text);
+                            display: none;">
             </td>
 
             <td class="px-4 py-2">
-              <input
-                type="text"
-                name="name[]"
-                value=""
-                placeholder="e.g., Emergency Fund"
-                class="w-full rounded px-3 py-2"
-                style="background-color: var(--color-input-bg);
-                       border: 1px solid var(--color-border);
-                       color: var(--color-text);"
-              >
+              <div class="flex items-center gap-2">
+                <select name="name_select[]"
+                        class="savings-name-select w-full rounded px-2 py-2"
+                        style="background-color: var(--color-input-bg);
+                               border: 1px solid var(--color-border);
+                               color: var(--color-text);"></select>
+
+                <button type="button"
+                        class="savings-name-delete btn-secondary"
+                        title="Delete this custom name"
+                        style="padding: 0.35rem 0.6rem; display: none;">✕</button>
+              </div>
+
+              <input type="text"
+                     name="name_other_text[]"
+                     class="savings-name-other w-full rounded px-3 py-2 mt-2"
+                     placeholder="Type a new name"
+                     value=""
+                     style="background-color: var(--color-input-bg);
+                            border: 1px solid var(--color-border);
+                            color: var(--color-text);
+                            display: none;">
+
+              <input type="hidden" class="name-current" value="">
+              <input type="hidden" class="bucket-current" value="">
             </td>
 
             <td class="px-4 py-2">
-              <input
-                type="number"
-                name="percent[]"
-                value=""
-                step="0.01"
-                min="0"
-                max="100"
-                placeholder="0.00"
-                class="w-full rounded px-3 py-2 percent-input"
-                style="background-color: var(--color-input-bg);
-                       border: 1px solid var(--color-border);
-                       color: var(--color-text);"
-              >
+              <input type="number" name="percent[]" value="" step="0.01" min="0" max="100"
+                     placeholder="0.00"
+                     class="w-full rounded px-3 py-2 percent-input"
+                     style="background-color: var(--color-input-bg);
+                            border: 1px solid var(--color-border);
+                            color: var(--color-text);">
             </td>
 
             <td class="px-4 py-2">
-              <span class="amount-display" style="color: var(--color-text-secondary);">
-                0.00
-              </span>
+              <span class="amount-display" style="color: var(--color-text-secondary);">0.00</span>
             </td>
 
             <td class="px-4 py-2">
@@ -268,280 +303,355 @@
       </table>
     </div>
 
-    <!-- TOTALS (styled like Expenses bottom cards) -->
+    <!-- TOTALS -->
     <div class="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-4">
-
-      <!-- TOTAL PERCENT -->
-        <div class="rounded-lg p-4"
-            style="background-color: var(--color-card-bg); border: 1px solid var(--color-border);">
+      <div class="rounded-lg p-4" style="background-color: var(--color-card-bg); border: 1px solid var(--color-border);">
         <div class="text-sm" style="color: var(--color-text-secondary);">Total Allocated (%)</div>
-
         <div class="text-2xl font-bold" style="color: var(--color-text);">
-            <span id="total-percent">0.00</span>%
+          <span id="total-percent">0.00</span>%
         </div>
-
-        <!-- This warning is hidden by default and only shown if total > 100% -->
-        <div id="percent-warning"
-            class="text-sm mt-2"
-            style="color: var(--color-error); display: none;">
-            Total cannot exceed 100%. Lower your percentages to save.
+        <div id="percent-warning" class="text-sm mt-2" style="color: var(--color-error); display: none;">
+          Total cannot exceed 100%. Lower your percentages to save.
         </div>
       </div>
 
-      <!-- TOTAL SAVED/ALLOCATED -->
-      <div class="rounded-lg p-4"
-           style="background-color: var(--color-card-bg); border: 1px solid var(--color-border);">
+      <div class="rounded-lg p-4" style="background-color: var(--color-card-bg); border: 1px solid var(--color-border);">
         <div class="text-sm" style="color: var(--color-text-secondary);">Total Saved</div>
         <div class="text-2xl font-bold" style="color: var(--color-text);">
           $<span id="total-saved">0.00</span>
         </div>
       </div>
 
-      <!-- LEFT AFTER SAVINGS/ALLOCATIONS -->
-      <div class="rounded-lg p-4"
-           style="background-color: var(--color-card-bg); border: 1px solid var(--color-border);">
+      <div class="rounded-lg p-4" style="background-color: var(--color-card-bg); border: 1px solid var(--color-border);">
         <div class="text-sm" style="color: var(--color-text-secondary);">Left After Savings</div>
         <div class="text-2xl font-bold" style="color: var(--color-text);">
           $<span id="left-after">{{ "%.2f"|format(money_left) }}</span>
         </div>
       </div>
-
     </div>
 
-    <!-- ACTION BUTTONS -->
     <div class="pt-6 flex flex-wrap gap-3">
-      <button type="submit" class="btn-primary" id="save-savings-btn">
-        Save Savings
-      </button>
-
-      <a href="{{ url_for('savings_select_month') }}" class="btn-secondary inline-block">
-        Select Different Month
-      </a>
+      <button type="submit" class="btn-primary" id="save-savings-btn">Save Savings</button>
+      <a href="{{ url_for('savings_select_month') }}" class="btn-secondary inline-block">Select Different Month</a>
     </div>
-
   </form>
 </div>
 
-<!-- ============================================================
-     JAVASCRIPT (matches Expenses approach)
-     ------------------------------------------------------------
-     We mirror the Expenses behaviors:
-       - Remove row from DOM
-       - Live totals while typing percent
-       - Add Savings row generator
-     Plus Savings-specific math:
-       row_amount = MONEY_LEFT * (percent / 100)
-============================================================ -->
 <script>
-  // ============================================================
-  // CONSTANT: this is the base amount for all percent allocations
-  // ============================================================
-  const MONEY_LEFT = {{ money_left|tojson }};
+document.addEventListener("DOMContentLoaded", () => {
 
-  // ============================================================
-  // FORMATTERS (same style as Expenses)
-  // ============================================================
+  const MONEY_LEFT = {{ money_left|tojson }};
+  const tbody = document.getElementById("savings-body");
+  const addBtn = document.getElementById("add-savings-btn");
+  const saveBtn = document.getElementById("save-savings-btn");
+
+  if (!tbody) return;
+
+  const NAME_OPTIONS_BY_BUCKET = {{ savings_name_options_by_bucket_json|tojson }};
+  const CUSTOM_BUCKET_ID_TO_LABEL = {{ savings_custom_bucket_id_to_label_json|tojson }};
+
   function formatMoney(value) {
     const num = Number(value) || 0;
-    return num.toLocaleString(undefined, {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    });
+    return num.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
-
-  function parsePercent(value) {
-    const cleaned = (value || "").toString().trim();
-    if (!cleaned) return 0;
-
-    const n = Number(cleaned);
+  function parsePercent(v) {
+    const t = (v || "").toString().trim();
+    if (!t) return 0;
+    const n = Number(t);
     if (!Number.isFinite(n)) return 0;
-
     return n;
   }
 
-  // ============================================================
-  // 1) REMOVE ROW
-  // ============================================================
-  function removeSavingsRow(buttonEl) {
-    const row = buttonEl.closest("tr");
+  window.removeSavingsRow = function(btn) {
+    const row = btn.closest("tr");
     if (row) row.remove();
     updateSavingsTotals();
+  };
+
+  function getBucketLabelFromSelectValue(val) {
+    if (!val) return null;
+    if (val === "__other__") return null;
+    if (val.startsWith("opt:")) {
+      const id = val.split(":")[1];
+      return CUSTOM_BUCKET_ID_TO_LABEL[id] || null;
+    }
+    return val;
   }
 
-  // ============================================================
-  // 2) LIVE TOTALS + ROW AMOUNTS
-  // ============================================================
+  function updateBucketDeleteButton(row) {
+    const sel = row.querySelector(".savings-bucket-select");
+    const del = row.querySelector(".savings-bucket-delete");
+    if (!sel || !del) return;
+    const isCustom = sel.value.startsWith("opt:");
+    del.style.display = isCustom ? "inline-flex" : "none";
+    if (isCustom) del.dataset.optId = sel.value.split(":")[1];
+    else delete del.dataset.optId;
+  }
+
+  function updateNameDeleteButton(row) {
+    const sel = row.querySelector(".savings-name-select");
+    const del = row.querySelector(".savings-name-delete");
+    if (!sel || !del) return;
+    const isCustom = sel.value.startsWith("opt:");
+    del.style.display = isCustom ? "inline-flex" : "none";
+    if (isCustom) del.dataset.optId = sel.value.split(":")[1];
+    else delete del.dataset.optId;
+  }
+
+  async function deleteBucket(row) {
+    const id = row.querySelector(".savings-bucket-delete")?.dataset?.optId;
+    if (!id) return;
+    const res = await fetch(`/api/savings/bucket/delete/${id}`, { method: "POST" });
+    const data = await res.json();
+    if (!data.ok) return alert(data.error || "Unable to delete bucket.");
+    window.location.reload();
+  }
+
+  async function deleteName(row) {
+    const id = row.querySelector(".savings-name-delete")?.dataset?.optId;
+    if (!id) return;
+    const res = await fetch(`/api/savings/name/delete/${id}`, { method: "POST" });
+    const data = await res.json();
+    if (!data.ok) return alert(data.error || "Unable to delete name.");
+    window.location.reload();
+  }
+
+  function populateNameSelect(row) {
+    const bucketSelect = row.querySelector(".savings-bucket-select");
+    const bucketOther = row.querySelector(".savings-bucket-other");
+    const nameSelect = row.querySelector(".savings-name-select");
+    const nameOther = row.querySelector(".savings-name-other");
+    if (!bucketSelect || !nameSelect) return;
+
+    let bucketLabel = null;
+    if (bucketSelect.value === "__other__") {
+      bucketLabel = (bucketOther?.value || "").trim() || null;
+    } else {
+      bucketLabel = getBucketLabelFromSelectValue(bucketSelect.value);
+    }
+
+    const currentName = (row.querySelector(".name-current")?.value || "").trim();
+
+    nameSelect.innerHTML = "";
+    const pick = document.createElement("option");
+    pick.value = "";
+    pick.textContent = "Pick…";
+    nameSelect.appendChild(pick);
+
+    const options = (bucketLabel && NAME_OPTIONS_BY_BUCKET[bucketLabel]) ? NAME_OPTIONS_BY_BUCKET[bucketLabel] : [];
+    options.forEach(opt => {
+      const o = document.createElement("option");
+      o.value = "opt:" + opt.id;
+      o.textContent = opt.name;
+      nameSelect.appendChild(o);
+    });
+
+    const other = document.createElement("option");
+    other.value = "__other__";
+    other.textContent = "Other…";
+    nameSelect.appendChild(other);
+
+    if (currentName) {
+      const match = options.find(o => (o.name || "").toLowerCase() === currentName.toLowerCase());
+      if (match) {
+        nameSelect.value = "opt:" + match.id;
+        if (nameOther) nameOther.style.display = "none";
+      } else {
+        nameSelect.value = "__other__";
+        if (nameOther) {
+          nameOther.style.display = "block";
+          nameOther.value = currentName;
+        }
+      }
+    } else {
+      nameSelect.value = "";
+      if (nameOther) nameOther.style.display = "none";
+    }
+
+    updateNameDeleteButton(row);
+  }
+
+  function updateBucketOtherVisibility(row) {
+    const sel = row.querySelector(".savings-bucket-select");
+    const other = row.querySelector(".savings-bucket-other");
+    if (!sel || !other) return;
+
+    const show = sel.value === "__other__";
+    other.style.display = show ? "block" : "none";
+    if (!show) other.value = "";
+
+    populateNameSelect(row);
+    updateBucketDeleteButton(row);
+  }
+
+  function updateNameOtherVisibility(row) {
+    const sel = row.querySelector(".savings-name-select");
+    const other = row.querySelector(".savings-name-other");
+    if (!sel || !other) return;
+
+    const show = sel.value === "__other__";
+    other.style.display = show ? "block" : "none";
+    if (!show) other.value = "";
+
+    updateNameDeleteButton(row);
+  }
+
   function updateSavingsTotals() {
-    const tbody = document.getElementById("savings-body");
-    if (!tbody) return;
-
-    const percentInputs = tbody.querySelectorAll('input[name="percent[]"]');
     const rows = tbody.querySelectorAll("tr");
-
     let totalPercent = 0;
 
-    // --- Pass 1: sum percents
-    percentInputs.forEach((input) => {
-      const p = parsePercent(input.value);
-      if (p >= 0) totalPercent += p;
+    rows.forEach(row => {
+      const pInput = row.querySelector('input[name="percent[]"]');
+      const amountEl = row.querySelector(".amount-display");
+      const p = parsePercent(pInput?.value || "0");
+      totalPercent += p;
+      const amt = MONEY_LEFT * (p / 100);
+      if (amountEl) amountEl.textContent = formatMoney(amt);
     });
 
-    // keep it neat
     totalPercent = Math.round(totalPercent * 100) / 100;
 
-    // --- Pass 2: update each row's dollar amount display
-    rows.forEach((row) => {
-      const percentInput = row.querySelector('input[name="percent[]"]');
-      const amountEl = row.querySelector(".amount-display");
-
-      if (!percentInput || !amountEl) return;
-
-      const p = parsePercent(percentInput.value);
-      const rowAmount = MONEY_LEFT * (p / 100);
-
-      amountEl.textContent = formatMoney(rowAmount);
-    });
-
-    // --- Totals
     const totalSaved = MONEY_LEFT * (totalPercent / 100);
     const leftAfter = MONEY_LEFT - totalSaved;
 
-    const percentEl = document.getElementById("total-percent");
-    const savedEl = document.getElementById("total-saved");
-    const leftEl = document.getElementById("left-after");
+    document.getElementById("total-percent").textContent = totalPercent.toFixed(2);
+    document.getElementById("total-saved").textContent = formatMoney(totalSaved);
+    document.getElementById("left-after").textContent = formatMoney(leftAfter);
 
-    const warningEl = document.getElementById("percent-warning");
-    const saveBtn = document.getElementById("save-savings-btn");
+    const warning = document.getElementById("percent-warning");
+    const over = totalPercent > 100;
 
-    if (percentEl) percentEl.textContent = totalPercent.toFixed(2);
-    if (savedEl) savedEl.textContent = formatMoney(totalSaved);
-    if (leftEl) leftEl.textContent = formatMoney(leftAfter);
-
-    /*
-    HARD UI RULE:
-    - If totalPercent > 100, the user is allocating more than they have.
-    - We:
-        1) show a warning message
-        2) disable the Save button
-    */
-    const overLimit = totalPercent > 100;
-
-    if (warningEl) warningEl.style.display = overLimit ? "block" : "none";
-
+    if (warning) warning.style.display = over ? "block" : "none";
     if (saveBtn) {
-    saveBtn.disabled = overLimit;
-
-    // Optional visual feedback so disabled doesn't look "broken"
-    saveBtn.style.opacity = overLimit ? "0.55" : "1";
-    saveBtn.style.cursor = overLimit ? "not-allowed" : "pointer";
+      saveBtn.disabled = over;
+      saveBtn.style.opacity = over ? "0.55" : "1";
+      saveBtn.style.cursor = over ? "not-allowed" : "pointer";
     }
-
   }
 
-  // ============================================================
-  // 3) PAGE LOAD + EVENT HOOKS
-  // ============================================================
-  document.addEventListener("DOMContentLoaded", () => {
-    const addBtn = document.getElementById("add-savings-btn");
-    const tbody = document.getElementById("savings-body");
+  function wireRow(row) {
+    const bucketSel = row.querySelector(".savings-bucket-select");
+    const bucketOther = row.querySelector(".savings-bucket-other");
+    const nameSel = row.querySelector(".savings-name-select");
+    const bucketDel = row.querySelector(".savings-bucket-delete");
+    const nameDel = row.querySelector(".savings-name-delete");
 
-    // Run once on load so existing saved rows display amounts immediately
-    updateSavingsTotals();
+    if (bucketSel) bucketSel.addEventListener("change", () => updateBucketOtherVisibility(row));
+    if (bucketOther) bucketOther.addEventListener("input", () => populateNameSelect(row));
+    if (nameSel) nameSel.addEventListener("change", () => updateNameOtherVisibility(row));
+    if (bucketDel) bucketDel.addEventListener("click", () => deleteBucket(row));
+    if (nameDel) nameDel.addEventListener("click", () => deleteName(row));
 
-    // Live totals while typing percent
-    if (tbody) {
-      tbody.addEventListener("input", (event) => {
-        const target = event.target;
-        if (target && target.matches('input[name="percent[]"]')) {
-          updateSavingsTotals();
-        }
-      });
-    }
+    row.addEventListener("input", (e) => {
+      if (e.target && e.target.matches('input[name="percent[]"]')) updateSavingsTotals();
+    });
 
-    // Add Savings row button
-    function addSavingsRow() {
-      const tr = document.createElement("tr");
-      tr.style.borderBottom = "1px solid var(--color-border)";
+    updateBucketOtherVisibility(row);
+    updateNameOtherVisibility(row);
+  }
 
-      // Hidden id must exist for backend alignment
-      const hiddenId = document.createElement("input");
-      hiddenId.type = "hidden";
-      hiddenId.name = "allocation_id[]";
-      hiddenId.value = "";
-      tr.appendChild(hiddenId);
+  tbody.querySelectorAll("tr").forEach(wireRow);
+  updateSavingsTotals();
 
-      // Build the row using the same styling pattern as Expenses
-      tr.innerHTML += `
-        <td class="px-4 py-2">
-          <select
-            name="bucket[]"
-            class="w-full rounded px-2 py-2"
-            style="
-              background-color: var(--color-input-bg);
-              border: 1px solid var(--color-border);
-              color: var(--color-text);
-            "
-          >
+  function addRow() {
+    const tr = document.createElement("tr");
+    tr.style.borderBottom = "1px solid var(--color-border)";
+
+    tr.innerHTML = `
+      <input type="hidden" name="allocation_id[]" value="">
+
+      <td class="px-4 py-2">
+        <div class="flex items-center gap-2">
+          <select name="bucket_select[]"
+                  class="savings-bucket-select w-full rounded px-2 py-2"
+                  style="background-color: var(--color-input-bg);
+                         border: 1px solid var(--color-border);
+                         color: var(--color-text);">
             <option value="" selected>Pick…</option>
-            {% for b in savings_buckets %}
-              <option value="{{ b }}">{{ b }}</option>
+            {% for label in builtin_savings_buckets %}
+              <option value="{{ label }}">{{ label }}</option>
             {% endfor %}
+            {% for opt in custom_savings_buckets %}
+              <option value="opt:{{ opt.id }}">{{ opt.label }}</option>
+            {% endfor %}
+            <option value="__other__">Other…</option>
           </select>
-        </td>
 
-        <td class="px-4 py-2">
-          <input
-            type="text"
-            name="name[]"
-            value=""
-            placeholder="e.g., Emergency Fund"
-            class="w-full rounded px-3 py-2"
-            style="
-              background-color: var(--color-input-bg);
-              border: 1px solid var(--color-border);
-              color: var(--color-text);
-            "
-          >
-        </td>
-
-        <td class="px-4 py-2">
-          <input
-            type="number"
-            name="percent[]"
-            value=""
-            step="0.01"
-            min="0"
-            max="100"
-            placeholder="0.00"
-            class="w-full rounded px-3 py-2 percent-input"
-            style="
-              background-color: var(--color-input-bg);
-              border: 1px solid var(--color-border);
-              color: var(--color-text);
-            "
-          >
-        </td>
-
-        <td class="px-4 py-2">
-          <span class="amount-display" style="color: var(--color-text-secondary);">0.00</span>
-        </td>
-
-        <td class="px-4 py-2">
           <button type="button"
-                  class="text-sm font-semibold hover:underline"
-                  style="color: var(--color-error);"
-                  onclick="removeSavingsRow(this)">
-            Remove
-          </button>
-        </td>
-      `;
+                  class="savings-bucket-delete btn-secondary"
+                  title="Delete this custom bucket"
+                  style="padding: 0.35rem 0.6rem; display: none;">✕</button>
+        </div>
 
-      tbody.appendChild(tr);
-      updateSavingsTotals();
-    }
+        <input type="text"
+               name="bucket_other_text[]"
+               class="savings-bucket-other w-full rounded px-3 py-2 mt-2"
+               placeholder="Type a new bucket"
+               value=""
+               style="background-color: var(--color-input-bg);
+                      border: 1px solid var(--color-border);
+                      color: var(--color-text);
+                      display: none;">
+      </td>
 
-    if (addBtn) addBtn.addEventListener("click", addSavingsRow);
-  });
+      <td class="px-4 py-2">
+        <div class="flex items-center gap-2">
+          <select name="name_select[]"
+                  class="savings-name-select w-full rounded px-2 py-2"
+                  style="background-color: var(--color-input-bg);
+                         border: 1px solid var(--color-border);
+                         color: var(--color-text);"></select>
+
+          <button type="button"
+                  class="savings-name-delete btn-secondary"
+                  title="Delete this custom name"
+                  style="padding: 0.35rem 0.6rem; display: none;">✕</button>
+        </div>
+
+        <input type="text"
+               name="name_other_text[]"
+               class="savings-name-other w-full rounded px-3 py-2 mt-2"
+               placeholder="Type a new name"
+               value=""
+               style="background-color: var(--color-input-bg);
+                      border: 1px solid var(--color-border);
+                      color: var(--color-text);
+                      display: none;">
+
+        <input type="hidden" class="name-current" value="">
+        <input type="hidden" class="bucket-current" value="">
+      </td>
+
+      <td class="px-4 py-2">
+        <input type="number" name="percent[]" value="" step="0.01" min="0" max="100"
+               placeholder="0.00"
+               class="w-full rounded px-3 py-2 percent-input"
+               style="background-color: var(--color-input-bg);
+                      border: 1px solid var(--color-border);
+                      color: var(--color-text);">
+      </td>
+
+      <td class="px-4 py-2">
+        <span class="amount-display" style="color: var(--color-text-secondary);">0.00</span>
+      </td>
+
+      <td class="px-4 py-2">
+        <button type="button"
+                class="text-sm font-semibold hover:underline"
+                style="color: var(--color-error);"
+                onclick="removeSavingsRow(this)">
+          Remove
+        </button>
+      </td>
+    `;
+
+    tbody.appendChild(tr);
+    wireRow(tr);
+    updateSavingsTotals();
+  }
+
+  if (addBtn) addBtn.addEventListener("click", addRow);
+});
 </script>
 
 {% endblock %}

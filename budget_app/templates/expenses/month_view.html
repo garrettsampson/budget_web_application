@@ -3,51 +3,44 @@
 
    PURPOSE
    -------
-   This page is the "Expenses for a Month" spreadsheet-like editor.
+   Expenses spreadsheet-like editor for a specific month/year.
 
-   It shows:
-   - Total Gross (display only)
-   - Total Net   (this is the amount we subtract expenses from)
-   - A table of expense rows: Category | Description | Cost
-   - Money Spent
-   - Money Left = total_net - total_spent
+   CORE RULE (MOST IMPORTANT):
+   ---------------------------
+   The backend saves expenses using PARALLEL LISTS.
+   That means every row MUST submit ALL of these inputs:
 
-   It also supports:
-   - Starting with ~7 rows minimum (if fewer saved, show blank rows)
-   - "Add Expense" button (adds new rows on the fly with JavaScript)
+     expense_id[]           hidden; blank means "new"
+     bucket_select[]        dropdown; can be builtin, opt:<id>, or __other__
+     bucket_other_text[]    text used only if bucket_select == __other__
+     merchant_select[]      dropdown; can be opt:<id> or __other__
+     merchant_other_text[]  text used only if merchant_select == __other__
+     cost[]                 number
 
-   IMPORTANT FORM NAME RULE
-   ------------------------
-   We submit FOUR parallel lists (arrays). This is CRITICAL.
-   Every visible row MUST include ALL FOUR fields, in the same order:
+   WHY TWO DROPDOWNS?
+   ------------------
+   - Bucket = the group/category (Subscriptions, Utilities, etc.)
+   - Merchant = the specific thing (Netflix, Water Bill, etc.)
+   Both support:
+   - selecting previous values
+   - picking Other… and typing a new value
+   - saving the new value as a reusable dropdown option
+   - deleting custom options via the X button beside the dropdown
 
-     expense_id[]    -> hidden DB id for updates (blank means INSERT new)
-     category[]      -> dropdown category bucket (for analytics)
-     description[]   -> free text detail (for what/why)
-     cost[]          -> dollar amount
-
-   Flask reads them like:
-     expense_ids   = request.form.getlist("expense_id[]")
-     categories    = request.form.getlist("category[]")
-     descriptions  = request.form.getlist("description[]")
-     costs         = request.form.getlist("cost[]")
-
-   THEMING
-   -------
-   This file uses your theme variables:
-     --color-text, --color-text-secondary, --color-card-bg, --color-border,
-     --color-input-bg, --color-primary, --color-primary-hover
+   NOTE ABOUT "X IN DROPDOWN":
+   ---------------------------
+   Native HTML select options cannot contain buttons/icons.
+   So we show the X beside the dropdown whenever a custom option is selected.
 ============================================================================ #}
 
 {% extends "base.html" %}
 {% block content %}
 
-<!-- PAGE TITLE -->
 <h2 class="text-2xl font-bold mb-4" style="color: var(--color-text);">
   Expenses for {{ month }}/{{ year }}
 </h2>
 
-<!-- INCOME SUMMARY CARD (Gross + Net) -->
+<!-- INCOME SUMMARY CARD -->
 <div class="shadow rounded-lg p-6 mb-6"
      style="background-color: var(--color-card-bg); border: 1px solid var(--color-border);">
   <h3 class="text-xl font-semibold mb-2" style="color: var(--color-text);">
@@ -61,15 +54,11 @@
   <ul class="space-y-1 text-sm">
     <li>
       <strong style="color: var(--color-text);">Total Gross:</strong>
-      <span style="color: var(--color-text-secondary);">
-        {{ "%.2f"|format(total_gross) }}
-      </span>
+      <span style="color: var(--color-text-secondary);">{{ "%.2f"|format(total_gross) }}</span>
     </li>
     <li>
       <strong style="color: var(--color-text);">Total Net:</strong>
-      <span style="color: var(--color-text-secondary);">
-        {{ "%.2f"|format(total_net) }}
-      </span>
+      <span style="color: var(--color-text-secondary);">{{ "%.2f"|format(total_net) }}</span>
     </li>
   </ul>
 </div>
@@ -83,94 +72,159 @@
       Monthly Expenses (Money Out)
     </h3>
 
-    <!-- Add Expense button (JS will append a new row) -->
     <button type="button" id="add-expense-btn" class="btn-secondary">
       Add Expense
     </button>
   </div>
 
   <p class="text-sm mb-4" style="color: var(--color-text-secondary);">
-    Add expense categories, descriptions, and costs. Press <strong>Save Expenses</strong> when finished.
+    Choose a bucket and merchant. If you choose <strong>Other…</strong>, type a new one and it will be saved for future use.
   </p>
 
-  <!-- FORM: submits all expense rows at once -->
   <form method="POST">
     <div class="overflow-x-auto">
       <table class="min-w-full rounded-lg overflow-hidden"
              style="border: 1px solid var(--color-border);">
 
-        <!-- TABLE HEADER -->
         <thead style="background-color: var(--color-card-bg);">
           <tr style="border-bottom: 1px solid var(--color-border);">
-            <th class="px-4 py-3 text-left text-sm font-semibold"
-                style="color: var(--color-text); width: 220px;">
-              Category
+            <th class="px-4 py-3 text-left text-sm font-semibold" style="color: var(--color-text); width: 260px;">
+              Bucket (Group)
             </th>
-            <th class="px-4 py-3 text-left text-sm font-semibold"
-                style="color: var(--color-text);">
-              Description
+            <th class="px-4 py-3 text-left text-sm font-semibold" style="color: var(--color-text);">
+              Merchant / Name
             </th>
-            <th class="px-4 py-3 text-left text-sm font-semibold"
-                style="color: var(--color-text); width: 160px;">
+            <th class="px-4 py-3 text-left text-sm font-semibold" style="color: var(--color-text); width: 160px;">
               Cost ($)
             </th>
-            <th class="px-4 py-3 text-left text-sm font-semibold"
-                style="color: var(--color-text); width: 110px;">
+            <th class="px-4 py-3 text-left text-sm font-semibold" style="color: var(--color-text); width: 110px;">
               Row
             </th>
           </tr>
         </thead>
 
-        <!-- TABLE BODY -->
         <tbody id="expenses-body">
-          {# ------------------------------------------------------------
-             1) Render all saved expense rows first
-             ------------------------------------------------------------ #}
+          {# ============================================================
+             Render saved expense rows
+             ============================================================ #}
           {% for e in expenses %}
           <tr style="border-bottom: 1px solid var(--color-border);">
-
-            <!-- Hidden ID tells backend: UPDATE this row -->
             <input type="hidden" name="expense_id[]" value="{{ e.id }}">
 
-            <!-- Category -->
+            <!-- =========================================================
+                 BUCKET SELECT + OTHER TEXT + DELETE X
+                 - bucket_select[] can be:
+                   * builtin label (e.g. "Subscriptions")
+                   * opt:<id> for custom saved option
+                   * __other__ to reveal the input box
+                 ========================================================= -->
             <td class="px-4 py-2">
-              <select
-                name="category[]"
-                class="expense-category-select w-full rounded px-2 py-2"
-                style="background-color: var(--color-input-bg);
-                       border: 1px solid var(--color-border);
-                       color: var(--color-text);"
-              >
-                {# If e.category is empty/None, default to Pick… #}
-                <option value="" {% if not e.category %}selected{% endif %}>Pick…</option>
+              <div class="flex items-center gap-2">
 
-                {% for c in expense_categories %}
-                  <option value="{{ c }}" {% if e.category == c %}selected{% endif %}>
-                    {{ c }}
-                  </option>
-                {% endfor %}
+                <select
+                  name="bucket_select[]"
+                  class="expense-bucket-select w-full rounded px-2 py-2"
+                  style="background-color: var(--color-input-bg);
+                         border: 1px solid var(--color-border);
+                         color: var(--color-text);"
+                >
+                  <option value="" {% if not e.category %}selected{% endif %}>Pick…</option>
 
-                {# "Custom" option exists for UX, but backend should treat it like no category
-                   unless you later implement permanent custom categories. #}
-                <option value="__custom__">Custom</option>
-              </select>
-            </td>
+                  <!-- Built-in buckets -->
+                  {% for label in builtin_expense_buckets %}
+                    <option value="{{ label }}" {% if e.category == label %}selected{% endif %}>
+                      {{ label }}
+                    </option>
+                  {% endfor %}
 
-            <!-- Description -->
-            <td class="px-4 py-2">
+                  <!-- Custom buckets (saved in DB) -->
+                  {% for opt in custom_expense_buckets %}
+                    <option value="opt:{{ opt.id }}" {% if e.category == opt.label %}selected{% endif %}>
+                      {{ opt.label }}
+                    </option>
+                  {% endfor %}
+
+                  <!-- Other (type your own) -->
+                  <option value="__other__">Other…</option>
+                </select>
+
+                <!-- X button: shown only when a CUSTOM bucket is selected -->
+                <button
+                  type="button"
+                  class="expense-bucket-delete btn-secondary"
+                  title="Delete this custom bucket"
+                  style="padding: 0.35rem 0.6rem; display: none;"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <!-- When user selects Other… we reveal this text box -->
               <input
                 type="text"
-                name="description[]"
-                value="{{ e.description or '' }}"
-                placeholder="e.g., George's Check Up"
-                class="w-full rounded px-3 py-2"
+                name="bucket_other_text[]"
+                class="expense-bucket-other w-full rounded px-3 py-2 mt-2"
+                placeholder="Type a new bucket name (example: 'Kids', 'Business')"
+                value=""
                 style="background-color: var(--color-input-bg);
                        border: 1px solid var(--color-border);
-                       color: var(--color-text);"
+                       color: var(--color-text);
+                       display: none;"
               >
             </td>
 
-            <!-- Cost -->
+            <!-- =========================================================
+                 MERCHANT SELECT + OTHER TEXT + DELETE X
+
+                 IMPORTANT:
+                 - The merchant dropdown depends on the selected bucket.
+                 - We rebuild merchant options in JS from merchant_options_by_bucket_json.
+                 - merchant_select[] values:
+                   * opt:<id> for saved merchant option
+                   * __other__ to reveal the merchant_other_text[] input
+                 ========================================================= -->
+            <td class="px-4 py-2">
+              <div class="flex items-center gap-2">
+
+                <select
+                  name="merchant_select[]"
+                  class="expense-merchant-select w-full rounded px-2 py-2"
+                  style="background-color: var(--color-input-bg);
+                         border: 1px solid var(--color-border);
+                         color: var(--color-text);"
+                >
+                  <!-- JS will populate this correctly on load and when bucket changes -->
+                </select>
+
+                <!-- X button: shown only when a CUSTOM merchant is selected -->
+                <button
+                  type="button"
+                  class="expense-merchant-delete btn-secondary"
+                  title="Delete this custom merchant"
+                  style="padding: 0.35rem 0.6rem; display: none;"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <input
+                type="text"
+                name="merchant_other_text[]"
+                class="expense-merchant-other w-full rounded px-3 py-2 mt-2"
+                placeholder="Type a new merchant (example: 'Netflix', 'Spotify')"
+                value=""
+                style="background-color: var(--color-input-bg);
+                       border: 1px solid var(--color-border);
+                       color: var(--color-text);
+                       display: none;"
+              >
+
+              {# We store the "current merchant name" here so JS can select it #}
+              <input type="hidden" class="merchant-current-name" value="{{ e.description or '' }}">
+              <input type="hidden" class="bucket-current-label" value="{{ e.category or '' }}">
+            </td>
+
+            <!-- COST -->
             <td class="px-4 py-2">
               <input
                 type="number"
@@ -186,7 +240,7 @@
               >
             </td>
 
-            <!-- Row actions -->
+            <!-- ROW ACTION -->
             <td class="px-4 py-2">
               <button type="button"
                       class="text-sm font-semibold hover:underline"
@@ -198,10 +252,9 @@
           </tr>
           {% endfor %}
 
-          {# ------------------------------------------------------------
-             2) Add blank rows until we have at least 7 total rows visible
-                - If you already have 10 saved expenses, blanks becomes 0
-             ------------------------------------------------------------ #}
+          {# ============================================================
+             Blank rows to show at least 7 lines
+             ============================================================ #}
           {% set needed_rows = 7 %}
           {% set existing_count = expenses|length %}
           {% set blanks = needed_rows - existing_count %}
@@ -209,41 +262,82 @@
 
           {% for _ in range(blanks) %}
           <tr style="border-bottom: 1px solid var(--color-border);">
-
-            <!-- Hidden ID blank tells backend: INSERT a new row if filled -->
             <input type="hidden" name="expense_id[]" value="">
 
-            <!-- Category -->
+            <!-- Bucket -->
             <td class="px-4 py-2">
-              <select
-                name="category[]"
-                class="expense-category-select w-full rounded px-2 py-2"
-                style="background-color: var(--color-input-bg);
-                       border: 1px solid var(--color-border);
-                       color: var(--color-text);"
-              >
-                <option value="" selected>Pick…</option>
+              <div class="flex items-center gap-2">
+                <select
+                  name="bucket_select[]"
+                  class="expense-bucket-select w-full rounded px-2 py-2"
+                  style="background-color: var(--color-input-bg);
+                         border: 1px solid var(--color-border);
+                         color: var(--color-text);"
+                >
+                  <option value="" selected>Pick…</option>
+                  {% for label in builtin_expense_buckets %}
+                    <option value="{{ label }}">{{ label }}</option>
+                  {% endfor %}
+                  {% for opt in custom_expense_buckets %}
+                    <option value="opt:{{ opt.id }}">{{ opt.label }}</option>
+                  {% endfor %}
+                  <option value="__other__">Other…</option>
+                </select>
 
-                {% for c in expense_categories %}
-                  <option value="{{ c }}">{{ c }}</option>
-                {% endfor %}
+                <button
+                  type="button"
+                  class="expense-bucket-delete btn-secondary"
+                  title="Delete this custom bucket"
+                  style="padding: 0.35rem 0.6rem; display: none;"
+                >✕</button>
+              </div>
 
-                <option value="__custom__">Custom</option>
-              </select>
-            </td>
-
-            <!-- Description -->
-            <td class="px-4 py-2">
               <input
                 type="text"
-                name="description[]"
+                name="bucket_other_text[]"
+                class="expense-bucket-other w-full rounded px-3 py-2 mt-2"
+                placeholder="Type a new bucket name"
                 value=""
-                placeholder="e.g., Eating Out"
-                class="w-full rounded px-3 py-2"
                 style="background-color: var(--color-input-bg);
                        border: 1px solid var(--color-border);
-                       color: var(--color-text);"
+                       color: var(--color-text);
+                       display: none;"
               >
+            </td>
+
+            <!-- Merchant -->
+            <td class="px-4 py-2">
+              <div class="flex items-center gap-2">
+                <select
+                  name="merchant_select[]"
+                  class="expense-merchant-select w-full rounded px-2 py-2"
+                  style="background-color: var(--color-input-bg);
+                         border: 1px solid var(--color-border);
+                         color: var(--color-text);"
+                ></select>
+
+                <button
+                  type="button"
+                  class="expense-merchant-delete btn-secondary"
+                  title="Delete this custom merchant"
+                  style="padding: 0.35rem 0.6rem; display: none;"
+                >✕</button>
+              </div>
+
+              <input
+                type="text"
+                name="merchant_other_text[]"
+                class="expense-merchant-other w-full rounded px-3 py-2 mt-2"
+                placeholder="Type a new merchant"
+                value=""
+                style="background-color: var(--color-input-bg);
+                       border: 1px solid var(--color-border);
+                       color: var(--color-text);
+                       display: none;"
+              >
+
+              <input type="hidden" class="merchant-current-name" value="">
+              <input type="hidden" class="bucket-current-label" value="">
             </td>
 
             <!-- Cost -->
@@ -277,210 +371,327 @@
       </table>
     </div>
 
-    <!-- TOTALS (from backend initially, then updated live by JS) -->
+    <!-- TOTALS -->
     <div class="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
-
-      <!-- MONEY SPENT -->
-      <div class="rounded-lg p-4"
-           style="background-color: var(--color-card-bg); border: 1px solid var(--color-border);">
+      <div class="rounded-lg p-4" style="background-color: var(--color-card-bg); border: 1px solid var(--color-border);">
         <div class="text-sm" style="color: var(--color-text-secondary);">Money Spent</div>
         <div class="text-2xl font-bold" style="color: var(--color-text);">
           $<span id="money-spent">{{ "%.2f"|format(total_spent) }}</span>
         </div>
       </div>
 
-      <!-- MONEY LEFT -->
-      <div class="rounded-lg p-4"
-           style="background-color: var(--color-card-bg); border: 1px solid var(--color-border);">
+      <div class="rounded-lg p-4" style="background-color: var(--color-card-bg); border: 1px solid var(--color-border);">
         <div class="text-sm" style="color: var(--color-text-secondary);">Money Left (Net − Spent)</div>
         <div class="text-2xl font-bold" style="color: var(--color-text);">
           $<span id="money-left">{{ "%.2f"|format(money_left) }}</span>
         </div>
       </div>
-
     </div>
 
-    <!-- ACTION BUTTONS -->
     <div class="pt-6 flex flex-wrap gap-3">
-      <button type="submit" class="btn-primary">
-        Save Expenses
-      </button>
-
-      <a href="{{ url_for('expenses_select_month') }}" class="btn-secondary inline-block">
-        Select Different Month
-      </a>
+      <button type="submit" class="btn-primary">Save Expenses</button>
+      <a href="{{ url_for('expenses_select_month') }}" class="btn-secondary inline-block">Select Different Month</a>
     </div>
 
   </form>
 </div>
 
-<!-- ============================================================
-     JAVASCRIPT (SINGLE CLEAN SCRIPT)
-     ------------------------------------------------------------
-     Contains:
-       - Remove row behavior (and updates totals)
-       - Live totals updates
-       - Dropdown -> Description auto-fill (only if description is empty)
-       - Add Expense row generator (creates correct named fields)
-============================================================ -->
 <script>
 /*
 =============================================================================
-EXPENSES MONTH VIEW — SINGLE CLEAN SCRIPT (NO DUPLICATES)
+EXPENSES — FRONTEND LOGIC
 =============================================================================
 
-This script handles FOUR things:
-
-1) Removing rows from the table (and updating totals)
-2) Live recalculation of totals when costs change
-3) Category -> Description autofill (ONLY if description is empty)
-4) Adding a new row that matches backend expectations exactly:
-      expense_id[]
-      category[]
-      description[]
-      cost[]
-
-IMPORTANT:
-----------
-The backend reads parallel arrays. Every row must contain all fields,
-in the same order. This script guarantees that.
+This script does ALL row behavior:
+1) Remove rows and update totals
+2) Live totals while typing cost
+3) Bucket -> merchant dropdown population (based on previous saved merchants)
+4) Bucket "Other…" toggles bucket text input
+5) Merchant "Other…" toggles merchant text input
+6) Delete X buttons for custom bucket/merchant options
+7) Add Expense row button (creates correctly named fields, avoiding glitches)
 =============================================================================
 */
 
 document.addEventListener("DOMContentLoaded", () => {
 
-  // ------------------------------------------------------------
-  // Grab DOM references once (clean + fast)
-  // ------------------------------------------------------------
   const tbody = document.getElementById("expenses-body");
   const addBtn = document.getElementById("add-expense-btn");
-
-  // If the table body isn't found, we can't do anything safely.
-  // (Prevents JS errors if this script somehow loads on other pages.)
   if (!tbody) return;
 
-  // ------------------------------------------------------------
-  // CONSTANT: Net income for the month (used for Money Left)
-  // ------------------------------------------------------------
   const TOTAL_NET = {{ total_net|tojson }};
 
-  // ------------------------------------------------------------
-  // Utility: format a number as money text with 2 decimals
-  // Example: 1234.5 -> "1,234.50"
-  // ------------------------------------------------------------
+  // Backend provides merchant options by bucket label:
+  // Example:
+  // {
+  //   "Subscriptions": [{"id": 12, "name": "Netflix"}, {"id": 13, "name": "Spotify"}],
+  //   "Utilities": [{"id": 20, "name": "Entergy"}]
+  // }
+  const MERCHANT_OPTIONS_BY_BUCKET = {{ expense_merchant_options_by_bucket_json|tojson }};
+
+  // Used to map bucket "opt:<id>" -> label so we can determine bucket label from select value
+  const CUSTOM_BUCKET_ID_TO_LABEL = {{ expense_custom_bucket_id_to_label_json|tojson }};
+
   function formatMoney(value) {
     const num = Number(value) || 0;
-    return num.toLocaleString(undefined, {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2
-    });
+    return num.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
-
-  // ------------------------------------------------------------
-  // Utility: safely parse cost values
-  // - empty -> 0
-  // - invalid -> 0
-  // ------------------------------------------------------------
   function parseCost(value) {
     const cleaned = (value || "").toString().trim();
     if (!cleaned) return 0;
-
     const n = Number(cleaned);
     if (!Number.isFinite(n)) return 0;
-
     return n;
   }
 
-  // ------------------------------------------------------------
-  // Recalculate totals:
-  //   Money Spent = sum(cost[])
-  //   Money Left  = TOTAL_NET - Money Spent
-  // ------------------------------------------------------------
   function updateExpenseTotals() {
     const costInputs = tbody.querySelectorAll('input[name="cost[]"]');
-
     let totalSpent = 0;
     costInputs.forEach((input) => {
       const cost = parseCost(input.value);
       if (cost >= 0) totalSpent += cost;
     });
-
-    // Round to 2 decimals to avoid floating point issues
     totalSpent = Math.round(totalSpent * 100) / 100;
-
     const moneyLeft = Math.round((TOTAL_NET - totalSpent) * 100) / 100;
 
     const spentEl = document.getElementById("money-spent");
     const leftEl = document.getElementById("money-left");
-
     if (spentEl) spentEl.textContent = formatMoney(totalSpent);
     if (leftEl) leftEl.textContent = formatMoney(moneyLeft);
   }
 
-  // ------------------------------------------------------------
-  // Global remove function
-  // Called by: onclick="removeExpenseRow(this)"
-  //
-  // IMPORTANT:
-  // - This removes the row from the UI.
-  // - Backend "soft-deletes" rows that are missing when you Save.
-  // ------------------------------------------------------------
+  // Remove row (global because onclick uses it)
   window.removeExpenseRow = function(buttonEl) {
     const row = buttonEl.closest("tr");
     if (row) row.remove();
     updateExpenseTotals();
   };
 
-  // ------------------------------------------------------------
-  // Category -> Description autofill
-  // Only fills if description is currently blank.
-  // Does NOT overwrite custom text.
-  // ------------------------------------------------------------
-  tbody.addEventListener("change", (event) => {
-    const target = event.target;
+  // Given a bucket select value, determine the bucket label.
+  // - builtin: "Subscriptions" -> "Subscriptions"
+  // - custom: "opt:123" -> look up label from CUSTOM_BUCKET_ID_TO_LABEL
+  // - other: "__other__" -> returns null (handled separately)
+  function getBucketLabelFromSelectValue(bucketSelectValue) {
+    if (!bucketSelectValue) return null;
+    if (bucketSelectValue === "__other__") return null;
 
-    // Only act when the changed element is a category dropdown
-    if (!target || !target.classList.contains("expense-category-select")) return;
-
-    const selectedValue = target.value;
-
-    // If blank or custom, do nothing
-    if (!selectedValue || selectedValue === "__custom__") return;
-
-    const row = target.closest("tr");
-    if (!row) return;
-
-    const descInput = row.querySelector('input[name="description[]"]');
-    if (!descInput) return;
-
-    // Only fill if blank (so we never overwrite custom text)
-    const current = (descInput.value || "").trim();
-    if (current === "") {
-      descInput.value = selectedValue;
+    if (bucketSelectValue.startsWith("opt:")) {
+      const id = bucketSelectValue.split(":")[1];
+      return CUSTOM_BUCKET_ID_TO_LABEL[id] || null;
     }
-  });
 
-  // ------------------------------------------------------------
-  // Live totals while typing in cost inputs
-  // Event delegation = works for existing rows AND new rows you add.
-  // ------------------------------------------------------------
+    return bucketSelectValue;
+  }
+
+  // Populate merchant dropdown for a row based on selected bucket label.
+  function populateMerchantSelect(row) {
+    const bucketSelect = row.querySelector(".expense-bucket-select");
+    const bucketOther = row.querySelector(".expense-bucket-other");
+    const merchantSelect = row.querySelector(".expense-merchant-select");
+    const merchantOther = row.querySelector(".expense-merchant-other");
+    const merchantDeleteBtn = row.querySelector(".expense-merchant-delete");
+
+    if (!bucketSelect || !merchantSelect) return;
+
+    // Determine bucket label:
+    // - if "__other__", use typed bucket text
+    // - else use builtin/custom label
+    let bucketLabel = null;
+    if (bucketSelect.value === "__other__") {
+      bucketLabel = (bucketOther?.value || "").trim() || null;
+    } else {
+      bucketLabel = getBucketLabelFromSelectValue(bucketSelect.value);
+    }
+
+    // Read "current merchant name" (from DB) so we can re-select it after rebuilding dropdown
+    const currentName = (row.querySelector(".merchant-current-name")?.value || "").trim();
+
+    // Clear existing options
+    merchantSelect.innerHTML = "";
+
+    // Base option
+    const pickOpt = document.createElement("option");
+    pickOpt.value = "";
+    pickOpt.textContent = "Pick…";
+    merchantSelect.appendChild(pickOpt);
+
+    // Add known merchant options for this bucket
+    const options = (bucketLabel && MERCHANT_OPTIONS_BY_BUCKET[bucketLabel]) ? MERCHANT_OPTIONS_BY_BUCKET[bucketLabel] : [];
+    options.forEach((opt) => {
+      const o = document.createElement("option");
+      o.value = "opt:" + opt.id;
+      o.textContent = opt.name;
+      merchantSelect.appendChild(o);
+    });
+
+    // Other option
+    const otherOpt = document.createElement("option");
+    otherOpt.value = "__other__";
+    otherOpt.textContent = "Other…";
+    merchantSelect.appendChild(otherOpt);
+
+    // If we have a currentName (from DB), try to match it to one of the options.
+    // If not found, we set merchant to Other and put that name in the text input.
+    if (currentName) {
+      const match = options.find(o => (o.name || "").toLowerCase() === currentName.toLowerCase());
+      if (match) {
+        merchantSelect.value = "opt:" + match.id;
+        if (merchantOther) merchantOther.style.display = "none";
+      } else {
+        merchantSelect.value = "__other__";
+        if (merchantOther) {
+          merchantOther.style.display = "block";
+          merchantOther.value = currentName;
+        }
+      }
+    } else {
+      // Default: pick blank
+      merchantSelect.value = "";
+      if (merchantOther) merchantOther.style.display = "none";
+    }
+
+    // Update merchant delete button visibility (only when selecting opt:<id>)
+    updateMerchantDeleteButton(row);
+  }
+
+  // Toggle bucket "Other" input
+  function updateBucketOtherVisibility(row) {
+    const bucketSelect = row.querySelector(".expense-bucket-select");
+    const bucketOther = row.querySelector(".expense-bucket-other");
+    if (!bucketSelect || !bucketOther) return;
+
+    const show = (bucketSelect.value === "__other__");
+    bucketOther.style.display = show ? "block" : "none";
+    if (!show) bucketOther.value = "";
+
+    // Whenever bucket changes, merchant list must update
+    populateMerchantSelect(row);
+
+    // Update bucket delete button visibility
+    updateBucketDeleteButton(row);
+  }
+
+  // Toggle merchant "Other" input
+  function updateMerchantOtherVisibility(row) {
+    const merchantSelect = row.querySelector(".expense-merchant-select");
+    const merchantOther = row.querySelector(".expense-merchant-other");
+    if (!merchantSelect || !merchantOther) return;
+
+    const show = (merchantSelect.value === "__other__");
+    merchantOther.style.display = show ? "block" : "none";
+    if (!show) merchantOther.value = "";
+
+    // Update merchant delete button visibility
+    updateMerchantDeleteButton(row);
+  }
+
+  // Delete button: show only when selected bucket is a CUSTOM option (opt:<id>)
+  function updateBucketDeleteButton(row) {
+    const bucketSelect = row.querySelector(".expense-bucket-select");
+    const delBtn = row.querySelector(".expense-bucket-delete");
+    if (!bucketSelect || !delBtn) return;
+
+    const isCustom = bucketSelect.value.startsWith("opt:");
+    delBtn.style.display = isCustom ? "inline-flex" : "none";
+
+    // Store the id on the button for click handler
+    if (isCustom) delBtn.dataset.optId = bucketSelect.value.split(":")[1];
+    else delete delBtn.dataset.optId;
+  }
+
+  // Delete button: show only when selected merchant is a CUSTOM option (opt:<id>)
+  function updateMerchantDeleteButton(row) {
+    const merchantSelect = row.querySelector(".expense-merchant-select");
+    const delBtn = row.querySelector(".expense-merchant-delete");
+    if (!merchantSelect || !delBtn) return;
+
+    const isCustom = merchantSelect.value.startsWith("opt:");
+    delBtn.style.display = isCustom ? "inline-flex" : "none";
+
+    if (isCustom) delBtn.dataset.optId = merchantSelect.value.split(":")[1];
+    else delete delBtn.dataset.optId;
+  }
+
+  // Delete custom bucket option
+  async function handleDeleteBucket(row) {
+    const delBtn = row.querySelector(".expense-bucket-delete");
+    if (!delBtn?.dataset?.optId) return;
+
+    const optId = delBtn.dataset.optId;
+
+    const res = await fetch(`/api/expenses/bucket/delete/${optId}`, { method: "POST" });
+    const data = await res.json();
+
+    if (!data.ok) {
+      alert(data.error || "Unable to delete bucket.");
+      return;
+    }
+
+    // Reload the page so dropdown lists are rebuilt cleanly
+    window.location.reload();
+  }
+
+  // Delete custom merchant option
+  async function handleDeleteMerchant(row) {
+    const delBtn = row.querySelector(".expense-merchant-delete");
+    if (!delBtn?.dataset?.optId) return;
+
+    const optId = delBtn.dataset.optId;
+
+    const res = await fetch(`/api/expenses/merchant/delete/${optId}`, { method: "POST" });
+    const data = await res.json();
+
+    if (!data.ok) {
+      alert(data.error || "Unable to delete merchant.");
+      return;
+    }
+
+    window.location.reload();
+  }
+
+  // Wire all row behavior
+  function wireRow(row) {
+    const bucketSelect = row.querySelector(".expense-bucket-select");
+    const bucketOther = row.querySelector(".expense-bucket-other");
+    const merchantSelect = row.querySelector(".expense-merchant-select");
+    const merchantOther = row.querySelector(".expense-merchant-other");
+    const bucketDelete = row.querySelector(".expense-bucket-delete");
+    const merchantDelete = row.querySelector(".expense-merchant-delete");
+
+    if (bucketSelect) {
+      bucketSelect.addEventListener("change", () => updateBucketOtherVisibility(row));
+    }
+    if (bucketOther) {
+      bucketOther.addEventListener("input", () => {
+        // bucket label changed, merchant list must update to match new bucket text
+        populateMerchantSelect(row);
+      });
+    }
+    if (merchantSelect) {
+      merchantSelect.addEventListener("change", () => updateMerchantOtherVisibility(row));
+    }
+    if (bucketDelete) {
+      bucketDelete.addEventListener("click", () => handleDeleteBucket(row));
+    }
+    if (merchantDelete) {
+      merchantDelete.addEventListener("click", () => handleDeleteMerchant(row));
+    }
+
+    // Initialize row state on load
+    updateBucketOtherVisibility(row);     // will also populate merchant select
+    updateMerchantOtherVisibility(row);
+  }
+
+  // Wire all existing rows
+  tbody.querySelectorAll("tr").forEach(wireRow);
+
+  // Live totals while typing costs (event delegation works for new rows too)
   tbody.addEventListener("input", (event) => {
     const target = event.target;
-    if (target && target.matches('input[name="cost[]"]')) {
-      updateExpenseTotals();
-    }
+    if (target && target.matches('input[name="cost[]"]')) updateExpenseTotals();
   });
 
-  // ------------------------------------------------------------
-  // Add Expense row generator (this is the glitch fix)
-  //
-  // KEY RULE:
-  // Every new row MUST contain:
-  //   expense_id[] (hidden)
-  //   category[] (select)
-  //   description[] (input)
-  //   cost[] (input)
-  // ------------------------------------------------------------
+  // Add Expense row (glitch-free, matching backend input names exactly)
   function addExpenseRow() {
     const tr = document.createElement("tr");
     tr.style.borderBottom = "1px solid var(--color-border)";
@@ -488,42 +699,80 @@ document.addEventListener("DOMContentLoaded", () => {
     tr.innerHTML = `
       <input type="hidden" name="expense_id[]" value="">
 
-      <!-- CATEGORY -->
       <td class="px-4 py-2">
-        <select
-          name="category[]"
-          class="expense-category-select w-full rounded px-2 py-2"
-          style="
-            background-color: var(--color-input-bg);
-            border: 1px solid var(--color-border);
-            color: var(--color-text);
-          "
-        >
-          <option value="" selected>Pick…</option>
-          {% for c in expense_categories %}
-            <option value="{{ c }}">{{ c }}</option>
-          {% endfor %}
-          <option value="__custom__">Custom</option>
-        </select>
-      </td>
+        <div class="flex items-center gap-2">
+          <select
+            name="bucket_select[]"
+            class="expense-bucket-select w-full rounded px-2 py-2"
+            style="background-color: var(--color-input-bg);
+                   border: 1px solid var(--color-border);
+                   color: var(--color-text);"
+          >
+            <option value="" selected>Pick…</option>
+            {% for label in builtin_expense_buckets %}
+              <option value="{{ label }}">{{ label }}</option>
+            {% endfor %}
+            {% for opt in custom_expense_buckets %}
+              <option value="opt:{{ opt.id }}">{{ opt.label }}</option>
+            {% endfor %}
+            <option value="__other__">Other…</option>
+          </select>
 
-      <!-- DESCRIPTION -->
-      <td class="px-4 py-2">
+          <button
+            type="button"
+            class="expense-bucket-delete btn-secondary"
+            title="Delete this custom bucket"
+            style="padding: 0.35rem 0.6rem; display: none;"
+          >✕</button>
+        </div>
+
         <input
           type="text"
-          name="description[]"
+          name="bucket_other_text[]"
+          class="expense-bucket-other w-full rounded px-3 py-2 mt-2"
+          placeholder="Type a new bucket name"
           value=""
-          placeholder="e.g., Netflix, Groceries"
-          class="w-full rounded px-3 py-2"
-          style="
-            background-color: var(--color-input-bg);
-            border: 1px solid var(--color-border);
-            color: var(--color-text);
-          "
+          style="background-color: var(--color-input-bg);
+                 border: 1px solid var(--color-border);
+                 color: var(--color-text);
+                 display: none;"
         >
       </td>
 
-      <!-- COST -->
+      <td class="px-4 py-2">
+        <div class="flex items-center gap-2">
+          <select
+            name="merchant_select[]"
+            class="expense-merchant-select w-full rounded px-2 py-2"
+            style="background-color: var(--color-input-bg);
+                   border: 1px solid var(--color-border);
+                   color: var(--color-text);"
+          ></select>
+
+          <button
+            type="button"
+            class="expense-merchant-delete btn-secondary"
+            title="Delete this custom merchant"
+            style="padding: 0.35rem 0.6rem; display: none;"
+          >✕</button>
+        </div>
+
+        <input
+          type="text"
+          name="merchant_other_text[]"
+          class="expense-merchant-other w-full rounded px-3 py-2 mt-2"
+          placeholder="Type a new merchant"
+          value=""
+          style="background-color: var(--color-input-bg);
+                 border: 1px solid var(--color-border);
+                 color: var(--color-text);
+                 display: none;"
+        >
+
+        <input type="hidden" class="merchant-current-name" value="">
+        <input type="hidden" class="bucket-current-label" value="">
+      </td>
+
       <td class="px-4 py-2">
         <input
           type="number"
@@ -533,40 +782,29 @@ document.addEventListener("DOMContentLoaded", () => {
           min="0"
           placeholder="0.00"
           class="w-full rounded px-3 py-2"
-          style="
-            background-color: var(--color-input-bg);
-            border: 1px solid var(--color-border);
-            color: var(--color-text);
-          "
+          style="background-color: var(--color-input-bg);
+                 border: 1px solid var(--color-border);
+                 color: var(--color-text);"
         >
       </td>
 
-      <!-- ROW ACTION -->
       <td class="px-4 py-2">
-        <button
-          type="button"
-          class="text-sm font-semibold hover:underline"
-          style="color: var(--color-error);"
-          onclick="removeExpenseRow(this)"
-        >
+        <button type="button"
+                class="text-sm font-semibold hover:underline"
+                style="color: var(--color-error);"
+                onclick="removeExpenseRow(this)">
           Remove
         </button>
       </td>
     `;
 
     tbody.appendChild(tr);
-
-    // Immediately update totals so the UI stays accurate.
-    // (New blank row won't change numbers, but this keeps behavior consistent.)
+    wireRow(tr);
     updateExpenseTotals();
   }
 
-  // Wire up the Add Expense button
-  if (addBtn) {
-    addBtn.addEventListener("click", addExpenseRow);
-  }
+  if (addBtn) addBtn.addEventListener("click", addExpenseRow);
 
-  // Run totals once on load so amounts match what’s actually in inputs
   updateExpenseTotals();
 });
 </script>
