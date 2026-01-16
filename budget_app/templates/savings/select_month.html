@@ -1,97 +1,202 @@
-{# =======================================================================
-   FILE: templates/savings/select_month.html
+{#
+======================================================================================
+savings/select_month.html — MONTH SELECTION PAGE (SAVINGS)
+======================================================================================
 
-   PURPOSE:
-   - This is the "month picker" page for the Savings tab.
-   - It mirrors the Expenses month selector flow:
-       1) User selects a year + month
-       2) Form submits as GET to /savings/view
-       3) /savings/view redirects to /savings/<year>/<month>
+Purpose:
+--------
+This page allows the user to pick a YEAR and a MONTH, then jump
+to the correct savings allocation page.
 
-   IMPORTANT:
-   - This page does NOT do any saving.
-   - It only chooses which month/year to view.
+This is rendered by:
+    @app.route("/savings/select")
 
-   EXPECTED CONTEXT VARIABLES (from app.py):
-   - current_year  (int)
-   - current_month (int)
-   ======================================================================= #}
+After submitting the form, it sends a GET request to:
+    /savings/view?year=YYYY&month=MM
+
+Which redirects to:
+    /savings/<year>/<month>
+
+WHY THIS FILE LOOKS LIKE EXPENSES:
+----------------------------------
+You asked for the Savings selector to match the Expenses selector exactly.
+So we reused the same structure + chip styling, only changing:
+  - text labels
+  - the form action route (savings_view_redirect)
+======================================================================================
+#}
 
 {% extends "base.html" %}
 
 {% block content %}
-<div class="page-container">
-  <h1 class="page-title">Select Savings Month</h1>
 
-  <p class="page-subtitle">
-    Choose the month and year you want to allocate your leftover money into savings categories.
-  </p>
+<style>
+    /* Circular buttons ("chips") for year and month options */
+    .year-chip,
+    .month-chip {
+        border-radius: 9999px; /* fully rounded pill shape */
+        padding: 0.35rem 0.9rem;
+        font-size: 0.875rem;
+        font-weight: 500;
+        border: 1px solid var(--color-border);
+        background-color: var(--color-card-bg);
+        color: var(--color-text);
+        white-space: nowrap;
+        cursor: pointer;
+        transition:
+            background-color 0.15s ease,
+            color 0.15s ease,
+            transform 0.1s ease,
+            border-color 0.15s ease;
+    }
 
-  {# -----------------------------------------------------------------------
-     The form submits as a GET request to savings_view_redirect:
+    .year-chip:hover,
+    .month-chip:hover {
+        border-color: var(--color-primary);
+    }
 
-     /savings/view?year=YYYY&month=MM
+    /* Selected state: uses your primary theme color */
+    .year-chip--active,
+    .month-chip--active {
+        background-color: var(--color-primary);
+        border-color: var(--color-primary);
+        color: #ffffff;
+        transform: translateY(-1px);
+    }
 
-     Then savings_view_redirect redirects to:
-       /savings/<year>/<month>
+    /* The horizontal year strip can scroll if there are many years */
+    #year-chip-container {
+        scrollbar-width: thin; /* Firefox */
+    }
+</style>
 
-     Why do we do this?
-     - It keeps routing consistent with Expenses.
-     - It keeps URLs clean for month view pages.
-     ----------------------------------------------------------------------- #}
-  <form action="{{ url_for('savings_view_redirect') }}" method="GET" class="card">
-    <div class="form-row">
+<h2 class="text-2xl font-bold mb-4" style="color: var(--color-text);">
+  Select Month to View Savings
+</h2>
 
-      {# ---------------------------
-         YEAR INPUT
-         ---------------------------
-         - Using "number" so you can type quickly
-         - Defaults to current_year passed in
-         - min/max are safety rails only (optional)
-      #}
-      <div class="form-group">
-        <label for="year" class="form-label">Year</label>
-        <input
-          id="year"
-          name="year"
-          type="number"
-          class="form-input"
-          value="{{ current_year }}"
-          min="2000"
-          max="2100"
-          required
-        />
-      </div>
+<p class="mb-4" style="color: var(--color-text-secondary);">
+  Choose a year and month below to allocate your leftover money into savings categories.
+</p>
 
-      {# ---------------------------
-         MONTH SELECT
-         ---------------------------
-         - Using a dropdown so months are valid and consistent
-         - Defaults to current_month passed in
-      #}
-      <div class="form-group">
-        <label for="month" class="form-label">Month</label>
-        <select id="month" name="month" class="form-select" required>
-          {# Loop 1..12, mark current_month selected #}
-          {% for m in range(1, 13) %}
-            <option value="{{ m }}" {% if m == current_month %}selected{% endif %}>
-              {{ "%02d"|format(m) }}
-            </option>
-          {% endfor %}
-        </select>
-      </div>
-    </div>
+<!-- ================================================================
+     FORM: Select year/month
+     - Sends data using GET to /savings/view
+     - The backend then redirects to /savings/<year>/<month>
+================================================================ -->
+<form action="{{ url_for('savings_view_redirect') }}" method="GET"
+      class="bg-white shadow rounded-lg p-6 space-y-4 max-w-lg" style="
+    background-color: var(--color-card-bg);
+    border: 1px solid var(--color-border);
+  ">
 
-    <div class="form-actions">
-      <button type="submit" class="btn btn-primary">
-        View Savings
+  <!-- HIDDEN FIELDS THAT THE FORM ACTUALLY SUBMITS -->
+  <input type="hidden" id="year" name="year" value="{{ current_year }}">
+  <input type="hidden" id="month" name="month" value="{{ current_month }}">
+
+  <!-- YEAR SELECTOR (chip-style buttons) -->
+  <div class="mb-4">
+    <label class="block text-sm font-medium mb-2" style="color: var(--color-text);">
+      Year
+    </label>
+
+    <div id="year-chip-container" class="flex gap-2 overflow-x-auto py-1">
+      {# Show a range centered around the current year (e.g. 3 years back, 3 ahead) #}
+      {% for y in range(current_year - 3, current_year + 4) %}
+      <button
+        type="button"
+        class="year-chip {% if y == current_year %}year-chip--active{% endif %}"
+        data-year="{{ y }}"
+      >
+        {{ y }}
       </button>
-
-      {# Optional convenience link back home, if your base styles support it #}
-      <a href="{{ url_for('home') }}" class="btn btn-secondary">
-        Cancel
-      </a>
+      {% endfor %}
     </div>
-  </form>
-</div>
+  </div>
+
+  <!-- MONTH SELECTOR (Jan–Dec chips) -->
+  <div class="mb-4">
+    <label class="block text-sm font-medium mb-2" style="color: var(--color-text);">
+      Month
+    </label>
+
+    {% set month_labels = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"] %}
+
+    <div id="month-chip-container" class="grid grid-cols-3 sm:grid-cols-6 gap-2">
+      {% for i in range(1, 13) %}
+      <button
+        type="button"
+        class="month-chip {% if i == current_month %}month-chip--active{% endif %}"
+        data-month="{{ i }}"
+      >
+        {{ month_labels[i-1] }}
+      </button>
+      {% endfor %}
+    </div>
+  </div>
+
+  <!-- SUBMIT -->
+  <div class="pt-4">
+    <button type="submit" class="btn-primary inline-block mt-4">
+      View Summary
+    </button>
+  </div>
+
+</form>
+
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    // Hidden inputs that the form actually submits
+    const yearInput = document.getElementById("year");
+    const monthInput = document.getElementById("month");
+
+    // -------------------------------
+    // YEAR CHIPS
+    // -------------------------------
+    const yearChips = Array.from(document.querySelectorAll(".year-chip"));
+
+    yearChips.forEach((chip) => {
+      chip.addEventListener("click", () => {
+        // Remove "active" class from all chips
+        yearChips.forEach((c) => c.classList.remove("year-chip--active"));
+
+        // Mark this chip as active
+        chip.classList.add("year-chip--active");
+
+        // Update hidden year input
+        yearInput.value = chip.dataset.year;
+
+        // Keep selected year visible / centered if scrolled
+        chip.scrollIntoView({
+          behavior: "smooth",
+          inline: "center",
+          block: "nearest",
+        });
+      });
+    });
+
+    // Auto-scroll current year into view on load
+    const activeYearChip = document.querySelector(".year-chip--active");
+    if (activeYearChip) {
+      activeYearChip.scrollIntoView({
+        behavior: "smooth",
+        inline: "center",
+        block: "nearest",
+      });
+    }
+
+    // -------------------------------
+    // MONTH CHIPS
+    // -------------------------------
+    const monthChips = Array.from(document.querySelectorAll(".month-chip"));
+
+    monthChips.forEach((chip) => {
+      chip.addEventListener("click", () => {
+        monthChips.forEach((c) => c.classList.remove("month-chip--active"));
+        chip.classList.add("month-chip--active");
+        monthInput.value = chip.dataset.month;
+      });
+    });
+  });
+</script>
+
 {% endblock %}

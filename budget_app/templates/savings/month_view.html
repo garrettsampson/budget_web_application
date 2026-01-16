@@ -1,560 +1,528 @@
-{# =======================================================================
-   FILE: templates/savings/month_view.html
+{# ============================================================================
+   templates/savings/month_view.html
 
-   PURPOSE:
-   - This is the Savings "spreadsheet" page for a selected month/year.
-   - It is intentionally modeled after your Expenses table UI, but:
-       * Each row uses PERCENT instead of DOLLARS.
-       * Each row shows a computed DOLLAR AMOUNT based on leftover money.
-       * Leftover money is computed from:
-            money_left = total_net - total_spent
+   PURPOSE
+   -------
+   Savings allocation page (copy of Expenses layout) for a chosen month/year.
 
-   WHAT THIS PAGE DOES:
-   - Displays the available money_left
-   - Renders saved SavingsAllocation rows
-   - Lets the user add/remove rows
-   - Lets the user allocate by % and see computed $ amounts live
-   - Saves rows via POST (mirrors expenses saving behavior)
-   - Shows:
-        total_percent allocated
-        total_saved (derived)
-        savings_leftover (derived)
+   It shows:
+   - Total Net Income (from income entries)
+   - Total Expenses   (active expenses)
+   - Money Left       = total_net - total_spent  <-- this is what we allocate
 
-   EXPECTED CONTEXT VARIABLES (from app.py):
-   - year, month (ints)
-   - total_net (float)
-   - total_spent (float)
-   - money_left (float)
-   - allocations (list[SavingsAllocation]) active rows
-   - total_percent (float)
-   - total_saved (float)
-   - savings_leftover (float)
-   - savings_buckets (list[str])
-   - existing_names_by_bucket (dict[str, list[str]])
+   Then it shows a spreadsheet-like table:
+     Bucket | Name | Percent (%) | Amount ($) | Row(Remove)
 
-   IMPORTANT DESIGN DECISION:
-   - We store ONLY percent in the DB.
-   - The dollar amounts are computed live from money_left,
-     so if income/expenses change later, the savings amounts update automatically.
-   ======================================================================= #}
+   IMPORTANT:
+   ---------
+   We store ONLY percent in the database.
+   The Amount ($) is computed live like:
+     row_amount = money_left * (percent / 100)
+
+   FORM NAME RULES (parallel lists):
+   --------------------------------
+   allocation_id[]  -> hidden DB id for updates (blank means INSERT new)
+   bucket[]         -> dropdown bucket/category
+   name[]           -> free text name within bucket
+   percent[]        -> numeric percent
+
+   THEMING
+   -------
+   This file matches the Expenses styling:
+     - Tailwind utility classes
+     - inline styles using your theme variables
+============================================================================ #}
 
 {% extends "base.html" %}
-
 {% block content %}
-<div class="page-container">
 
-  <div class="page-header">
-    <h1 class="page-title">Savings — {{ year }}/{{ "%02d"|format(month) }}</h1>
-    <p class="page-subtitle">
-      Allocate your leftover money into savings categories using percentages.
-    </p>
+<!-- PAGE TITLE -->
+<h2 class="text-2xl font-bold mb-4" style="color: var(--color-text);">
+  Savings for {{ month }}/{{ year }}
+</h2>
+
+<!-- SUMMARY CARD (matches Expenses income card style) -->
+<div class="shadow rounded-lg p-6 mb-6"
+     style="background-color: var(--color-card-bg); border: 1px solid var(--color-border);">
+  <h3 class="text-xl font-semibold mb-2" style="color: var(--color-text);">
+    Available Money for Savings (Leftover)
+  </h3>
+
+  <p class="text-sm mb-3" style="color: var(--color-text-secondary);">
+    Savings uses the money left after expenses. Percent allocations are based on this leftover amount.
+  </p>
+
+  <ul class="space-y-1 text-sm">
+    <li>
+      <strong style="color: var(--color-text);">Total Net Income:</strong>
+      <span style="color: var(--color-text-secondary);">
+        {{ "%.2f"|format(total_net) }}
+      </span>
+    </li>
+    <li>
+      <strong style="color: var(--color-text);">Total Expenses:</strong>
+      <span style="color: var(--color-text-secondary);">
+        {{ "%.2f"|format(total_spent) }}
+      </span>
+    </li>
+    <li>
+      <strong style="color: var(--color-text);">Left to Allocate:</strong>
+      <span style="color: var(--color-text-secondary);">
+        {{ "%.2f"|format(money_left) }}
+      </span>
+    </li>
+  </ul>
+</div>
+
+<!-- SAVINGS EDITOR CARD (matches Expenses editor card style) -->
+<div class="shadow rounded-lg p-6"
+     style="background-color: var(--color-card-bg); border: 1px solid var(--color-border);">
+
+  <div class="flex items-center justify-between mb-4">
+    <h3 class="text-xl font-semibold" style="color: var(--color-text);">
+      Monthly Savings Allocations (Percent-Based)
+    </h3>
+
+    <!-- Add Savings row button -->
+    <button type="button" id="add-savings-btn" class="btn-secondary">
+      Add Savings
+    </button>
   </div>
 
-  {# =====================================================================
-     SUMMARY BAR (Top of Page)
-     ---------------------------------------------------------------------
-     These numbers mirror the budget logic:
-       - total_net: total net income for month
-       - total_spent: total active expenses for month
-       - money_left: what remains available to allocate to savings
-     ===================================================================== #}
-  <div class="summary-grid card">
-    <div class="summary-item">
-      <div class="summary-label">Total Net Income</div>
-      <div class="summary-value" id="totalNetDisplay">$0.00</div>
-      <div class="summary-subtext">From your income entries</div>
-    </div>
+  <p class="text-sm mb-4" style="color: var(--color-text-secondary);">
+    Choose a bucket, enter a name, and enter a percent. The dollar amount is calculated automatically.
+    Press <strong>Save Savings</strong> when finished.
+  </p>
 
-    <div class="summary-item">
-      <div class="summary-label">Total Expenses</div>
-      <div class="summary-value" id="totalSpentDisplay">$0.00</div>
-      <div class="summary-subtext">Sum of active expenses</div>
-    </div>
+  <!-- FORM: submits all allocations at once -->
+  <form method="POST">
+    <div class="overflow-x-auto">
+      <table class="min-w-full rounded-lg overflow-hidden"
+             style="border: 1px solid var(--color-border);">
 
-    <div class="summary-item">
-      <div class="summary-label">Left to Allocate</div>
-      <div class="summary-value" id="moneyLeftDisplay">$0.00</div>
-      <div class="summary-subtext">This is the base for savings %</div>
-    </div>
-  </div>
-
-  {# =====================================================================
-     IMPORTANT: DATALISTS FOR NAME SUGGESTIONS
-     ---------------------------------------------------------------------
-     We create one <datalist> per bucket so the "Name" field can suggest
-     previously-used names *within* the chosen bucket.
-
-     The input uses:
-       list="datalist-<bucketSafeId>"
-
-     And JS will swap the list attribute whenever bucket changes.
-     ===================================================================== #}
-  {% for bucket in savings_buckets %}
-    {# Convert bucket string into a safe-ish id by replacing spaces and slashes #}
-    {% set bucket_id = bucket|replace(" ", "_")|replace("/", "_") %}
-    <datalist id="datalist-{{ bucket_id }}">
-      {% for n in existing_names_by_bucket.get(bucket, []) %}
-        <option value="{{ n }}"></option>
-      {% endfor %}
-    </datalist>
-  {% endfor %}
-
-  {# =====================================================================
-     MAIN FORM
-     ---------------------------------------------------------------------
-     Submits the entire table at once, like Expenses.
-     The backend expects arrays:
-       allocation_id[]
-       bucket[]
-       name[]
-       percent[]
-     ===================================================================== #}
-  <form
-    method="POST"
-    action="{{ url_for('savings_month_view', year=year, month=month) }}"
-    class="card"
-    id="savingsForm"
-    data-money-left="{{ money_left }}"
-  >
-    {# -------------------------------------------------------------------
-       TABLE HEADER ROW
-       -------------------------------------------------------------------
-       Columns:
-         1) Bucket (dropdown)
-         2) Name (text input w/ suggestions)
-         3) Percent (number input)
-         4) Amount (computed, read-only display)
-         5) Remove row button
-       ------------------------------------------------------------------- #}
-    <div class="table-wrap">
-      <table class="data-table" id="savingsTable">
-        <thead>
-          <tr>
-            <th style="width: 22%;">Bucket</th>
-            <th style="width: 36%;">Name</th>
-            <th style="width: 14%;">Percent (%)</th>
-            <th style="width: 18%;">Amount ($)</th>
-            <th style="width: 10%;">Remove</th>
+        <!-- TABLE HEADER -->
+        <thead style="background-color: var(--color-card-bg);">
+          <tr style="border-bottom: 1px solid var(--color-border);">
+            <th class="px-4 py-3 text-left text-sm font-semibold"
+                style="color: var(--color-text); width: 220px;">
+              Bucket
+            </th>
+            <th class="px-4 py-3 text-left text-sm font-semibold"
+                style="color: var(--color-text);">
+              Name
+            </th>
+            <th class="px-4 py-3 text-left text-sm font-semibold"
+                style="color: var(--color-text); width: 160px;">
+              Percent (%)
+            </th>
+            <th class="px-4 py-3 text-left text-sm font-semibold"
+                style="color: var(--color-text); width: 180px;">
+              Amount ($)
+            </th>
+            <th class="px-4 py-3 text-left text-sm font-semibold"
+                style="color: var(--color-text); width: 110px;">
+              Row
+            </th>
           </tr>
         </thead>
 
-        <tbody id="savingsTbody">
-          {# ==============================================================
-             EXISTING ROWS (from DB)
-             --------------------------------------------------------------
-             For each allocation, we render a row that includes:
-               - hidden allocation_id[] so backend knows "update vs create"
-               - bucket[] select
-               - name[] input
-               - percent[] input
-               - computed $ display (computed in JS so it stays live)
-             ============================================================== #}
+        <!-- TABLE BODY -->
+        <tbody id="savings-body">
+          {# ------------------------------------------------------------
+             1) Render all saved allocations first
+             ------------------------------------------------------------ #}
           {% for a in allocations %}
-            {% set bucket_id = (a.bucket or "Other")|replace(" ", "_")|replace("/", "_") %}
-            <tr class="savings-row">
-              <td>
-                {# Hidden ID input for updates #}
-                <input type="hidden" name="allocation_id[]" value="{{ a.id }}" />
+          <tr style="border-bottom: 1px solid var(--color-border);">
+            <!-- Hidden ID tells backend: "update this record" -->
+            <input type="hidden" name="allocation_id[]" value="{{ a.id }}">
 
-                <select name="bucket[]" class="bucket-select form-select">
-                  <option value="" {% if not a.bucket %}selected{% endif %}>— Select —</option>
-                  {% for b in savings_buckets %}
-                    <option value="{{ b }}" {% if a.bucket == b %}selected{% endif %}>
-                      {{ b }}
-                    </option>
-                  {% endfor %}
-                </select>
-              </td>
+            <!-- Bucket -->
+            <td class="px-4 py-2">
+              <select
+                name="bucket[]"
+                class="w-full rounded px-2 py-2"
+                style="background-color: var(--color-input-bg);
+                       border: 1px solid var(--color-border);
+                       color: var(--color-text);"
+              >
+                <option value="">Pick…</option>
+                {% for b in savings_buckets %}
+                  <option value="{{ b }}" {% if a.bucket == b %}selected{% endif %}>
+                    {{ b }}
+                  </option>
+                {% endfor %}
+              </select>
+            </td>
 
-              <td>
-                {# Name input: list attribute points to the bucket-specific datalist #}
-                <input
-                  type="text"
-                  name="name[]"
-                  class="name-input form-input"
-                  placeholder="e.g., Roth IRA, Emergency, Vacation"
-                  value="{{ a.name or '' }}"
-                  list="datalist-{{ bucket_id }}"
-                />
-              </td>
+            <!-- Name -->
+            <td class="px-4 py-2">
+              <input
+                type="text"
+                name="name[]"
+                value="{{ a.name or '' }}"
+                placeholder="e.g., Roth IRA, Emergency Fund"
+                class="w-full rounded px-3 py-2"
+                style="background-color: var(--color-input-bg);
+                       border: 1px solid var(--color-border);
+                       color: var(--color-text);"
+              >
+            </td>
 
-              <td>
-                <input
-                  type="number"
-                  name="percent[]"
-                  class="percent-input form-input"
-                  min="0"
-                  max="100"
-                  step="0.01"
-                  value="{{ "%.2f"|format(a.percent) }}"
-                />
-              </td>
+            <!-- Percent -->
+            <td class="px-4 py-2">
+              <input
+                type="number"
+                name="percent[]"
+                value="{{ '%.2f'|format(a.percent) }}"
+                step="0.01"
+                min="0"
+                max="100"
+                placeholder="0.00"
+                class="w-full rounded px-3 py-2 percent-input"
+                style="background-color: var(--color-input-bg);
+                       border: 1px solid var(--color-border);
+                       color: var(--color-text);"
+              >
+            </td>
 
-              <td>
-                {# Read-only display that JS updates live #}
-                <span class="amount-display">$0.00</span>
-              </td>
+            <!-- Amount (computed by JS, displayed here) -->
+            <td class="px-4 py-2">
+              <span class="amount-display" style="color: var(--color-text-secondary);">
+                0.00
+              </span>
+            </td>
 
-              <td>
-                <button type="button" class="btn btn-danger btn-sm remove-row-btn">
-                  ✕
-                </button>
-              </td>
-            </tr>
+            <!-- Row actions -->
+            <td class="px-4 py-2">
+              <button type="button"
+                      class="text-sm font-semibold hover:underline"
+                      style="color: var(--color-error);"
+                      onclick="removeSavingsRow(this)">
+                Remove
+              </button>
+            </td>
+          </tr>
           {% endfor %}
 
-          {# ==============================================================
-             IF NO ROWS EXIST YET
-             --------------------------------------------------------------
-             We render ONE empty starter row so the user isn't staring at an
-             empty table.
-             ============================================================== #}
-          {% if allocations|length == 0 %}
-            <tr class="savings-row">
-              <td>
-                <input type="hidden" name="allocation_id[]" value="" />
+          {# ------------------------------------------------------------
+             2) Add blank rows until we have at least 7 total rows visible
+             ------------------------------------------------------------ #}
+          {% set needed_rows = 7 %}
+          {% set existing_count = allocations|length %}
+          {% set blanks = needed_rows - existing_count %}
+          {% if blanks < 0 %}{% set blanks = 0 %}{% endif %}
 
-                <select name="bucket[]" class="bucket-select form-select">
-                  <option value="" selected>— Select —</option>
-                  {% for b in savings_buckets %}
-                    <option value="{{ b }}">{{ b }}</option>
-                  {% endfor %}
-                </select>
-              </td>
+          {% for _ in range(blanks) %}
+          <tr style="border-bottom: 1px solid var(--color-border);">
+            <input type="hidden" name="allocation_id[]" value="">
 
-              <td>
-                <input
-                  type="text"
-                  name="name[]"
-                  class="name-input form-input"
-                  placeholder="e.g., Roth IRA, Emergency, Vacation"
-                  value=""
-                  {# default list points to "Other" datalist if present #}
-                  list="datalist-Other"
-                />
-              </td>
+            <td class="px-4 py-2">
+              <select
+                name="bucket[]"
+                class="w-full rounded px-2 py-2"
+                style="background-color: var(--color-input-bg);
+                       border: 1px solid var(--color-border);
+                       color: var(--color-text);"
+              >
+                <option value="" selected>Pick…</option>
+                {% for b in savings_buckets %}
+                  <option value="{{ b }}">{{ b }}</option>
+                {% endfor %}
+              </select>
+            </td>
 
-              <td>
-                <input
-                  type="number"
-                  name="percent[]"
-                  class="percent-input form-input"
-                  min="0"
-                  max="100"
-                  step="0.01"
-                  value=""
-                />
-              </td>
+            <td class="px-4 py-2">
+              <input
+                type="text"
+                name="name[]"
+                value=""
+                placeholder="e.g., Emergency Fund"
+                class="w-full rounded px-3 py-2"
+                style="background-color: var(--color-input-bg);
+                       border: 1px solid var(--color-border);
+                       color: var(--color-text);"
+              >
+            </td>
 
-              <td>
-                <span class="amount-display">$0.00</span>
-              </td>
+            <td class="px-4 py-2">
+              <input
+                type="number"
+                name="percent[]"
+                value=""
+                step="0.01"
+                min="0"
+                max="100"
+                placeholder="0.00"
+                class="w-full rounded px-3 py-2 percent-input"
+                style="background-color: var(--color-input-bg);
+                       border: 1px solid var(--color-border);
+                       color: var(--color-text);"
+              >
+            </td>
 
-              <td>
-                <button type="button" class="btn btn-danger btn-sm remove-row-btn">
-                  ✕
-                </button>
-              </td>
-            </tr>
-          {% endif %}
+            <td class="px-4 py-2">
+              <span class="amount-display" style="color: var(--color-text-secondary);">
+                0.00
+              </span>
+            </td>
+
+            <td class="px-4 py-2">
+              <button type="button"
+                      class="text-sm font-semibold hover:underline"
+                      style="color: var(--color-error);"
+                      onclick="removeSavingsRow(this)">
+                Remove
+              </button>
+            </td>
+          </tr>
+          {% endfor %}
         </tbody>
       </table>
     </div>
 
-    {# =====================================================================
-       TABLE CONTROLS
-       ===================================================================== #}
-    <div class="table-controls">
-      <button type="button" class="btn btn-secondary" id="addRowBtn">
-        + Add Savings Row
-      </button>
+    <!-- TOTALS (styled like Expenses bottom cards) -->
+    <div class="mt-6 grid grid-cols-1 sm:grid-cols-3 gap-4">
 
-      <button type="submit" class="btn btn-primary">
+      <!-- TOTAL PERCENT -->
+      <div class="rounded-lg p-4"
+           style="background-color: var(--color-card-bg); border: 1px solid var(--color-border);">
+        <div class="text-sm" style="color: var(--color-text-secondary);">Total Allocated (%)</div>
+        <div class="text-2xl font-bold" style="color: var(--color-text);">
+          <span id="total-percent">0.00</span>%
+        </div>
+      </div>
+
+      <!-- TOTAL SAVED -->
+      <div class="rounded-lg p-4"
+           style="background-color: var(--color-card-bg); border: 1px solid var(--color-border);">
+        <div class="text-sm" style="color: var(--color-text-secondary);">Total Saved</div>
+        <div class="text-2xl font-bold" style="color: var(--color-text);">
+          $<span id="total-saved">0.00</span>
+        </div>
+      </div>
+
+      <!-- LEFT AFTER SAVINGS -->
+      <div class="rounded-lg p-4"
+           style="background-color: var(--color-card-bg); border: 1px solid var(--color-border);">
+        <div class="text-sm" style="color: var(--color-text-secondary);">Left After Savings</div>
+        <div class="text-2xl font-bold" style="color: var(--color-text);">
+          $<span id="left-after">{{ "%.2f"|format(money_left) }}</span>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- ACTION BUTTONS -->
+    <div class="pt-6 flex flex-wrap gap-3">
+      <button type="submit" class="btn-primary">
         Save Savings
       </button>
+
+      <a href="{{ url_for('savings_select_month') }}" class="btn-secondary inline-block">
+        Select Different Month
+      </a>
     </div>
 
-    {# =====================================================================
-       TOTALS / FOOTER SUMMARY (Bottom of Page)
-       ---------------------------------------------------------------------
-       These totals are derived live:
-         - Total % allocated
-         - Total $ saved
-         - $ leftover after allocations
-       ===================================================================== #}
-    <div class="summary-grid card totals-card">
-      <div class="summary-item">
-        <div class="summary-label">Total Allocated (%)</div>
-        <div class="summary-value" id="totalPercentDisplay">0.00%</div>
-        <div class="summary-subtext">Sum of all row percents</div>
-      </div>
-
-      <div class="summary-item">
-        <div class="summary-label">Total Saved ($)</div>
-        <div class="summary-value" id="totalSavedDisplay">$0.00</div>
-        <div class="summary-subtext">money_left × (total_percent / 100)</div>
-      </div>
-
-      <div class="summary-item">
-        <div class="summary-label">Left After Savings</div>
-        <div class="summary-value" id="leftAfterSavingsDisplay">$0.00</div>
-        <div class="summary-subtext">money_left − total_saved</div>
-      </div>
-    </div>
   </form>
-
 </div>
 
-{# =======================================================================
-   JAVASCRIPT
-   -----------------------------------------------------------------------
-   We do 3 big things:
-   1) Add/remove rows dynamically
-   2) Keep the "Amount ($)" column updated live:
-        row_amount = money_left * (row_percent / 100)
-   3) Keep the totals updated live
-
-   IMPORTANT:
-   - The backend is the source of truth for saving.
-   - JS is only for UI convenience and live feedback.
-   ======================================================================= #}
+<!-- ============================================================
+     JAVASCRIPT (matches Expenses approach)
+     ------------------------------------------------------------
+     We mirror the Expenses behaviors:
+       - Remove row from DOM
+       - Live totals while typing percent
+       - Add Savings row generator
+     Plus Savings-specific math:
+       row_amount = MONEY_LEFT * (percent / 100)
+============================================================ -->
 <script>
-(function () {
-  // ------------------------------------------------------------
-  // Grab key DOM nodes once
-  // ------------------------------------------------------------
-  const form = document.getElementById("savingsForm");
-  const tbody = document.getElementById("savingsTbody");
-  const addRowBtn = document.getElementById("addRowBtn");
+  // ============================================================
+  // CONSTANT: this is the base amount for all percent allocations
+  // ============================================================
+  const MONEY_LEFT = {{ money_left|tojson }};
 
-  // Summary display elements (top)
-  const totalNetDisplay = document.getElementById("totalNetDisplay");
-  const totalSpentDisplay = document.getElementById("totalSpentDisplay");
-  const moneyLeftDisplay = document.getElementById("moneyLeftDisplay");
-
-  // Totals display elements (bottom)
-  const totalPercentDisplay = document.getElementById("totalPercentDisplay");
-  const totalSavedDisplay = document.getElementById("totalSavedDisplay");
-  const leftAfterSavingsDisplay = document.getElementById("leftAfterSavingsDisplay");
-
-  // ------------------------------------------------------------
-  // Pull numeric base value from <form data-money-left="...">
-  // IMPORTANT: This must match what the backend computed.
-  // ------------------------------------------------------------
-  const moneyLeft = parseFloat(form.dataset.moneyLeft || "0");
-
-  // ------------------------------------------------------------
-  // Utility: format number as USD currency
-  // NOTE: This keeps it consistent and readable
-  // ------------------------------------------------------------
-  function formatCurrency(value) {
-    const n = Number(value) || 0;
-    return n.toLocaleString(undefined, { style: "currency", currency: "USD" });
+  // ============================================================
+  // FORMATTERS (same style as Expenses)
+  // ============================================================
+  function formatMoney(value) {
+    const num = Number(value) || 0;
+    return num.toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    });
   }
 
-  // ------------------------------------------------------------
-  // Utility: format percent with 2 decimals
-  // ------------------------------------------------------------
-  function formatPercent(value) {
-    const n = Number(value) || 0;
-    return n.toFixed(2) + "%";
+  function parsePercent(value) {
+    const cleaned = (value || "").toString().trim();
+    if (!cleaned) return 0;
+
+    const n = Number(cleaned);
+    if (!Number.isFinite(n)) return 0;
+
+    return n;
   }
 
-  // ------------------------------------------------------------
-  // Convert a bucket string to the same id format used in template:
-  //   "Emergency Fund" -> "Emergency_Fund"
-  //   "Brokerage / Investing" -> "Brokerage___Investing" (slashes replaced)
-  // ------------------------------------------------------------
-  function bucketToId(bucket) {
-    return (bucket || "Other")
-      .replaceAll(" ", "_")
-      .replaceAll("/", "_");
+  // ============================================================
+  // 1) REMOVE ROW
+  // ============================================================
+  function removeSavingsRow(buttonEl) {
+    const row = buttonEl.closest("tr");
+    if (row) row.remove();
+    updateSavingsTotals();
   }
 
-  // ------------------------------------------------------------
-  // Core: Recalculate row amounts + totals
-  // ------------------------------------------------------------
-  function recalcAll() {
+  // ============================================================
+  // 2) LIVE TOTALS + ROW AMOUNTS
+  // ============================================================
+  function updateSavingsTotals() {
+    const tbody = document.getElementById("savings-body");
+    if (!tbody) return;
+
+    const percentInputs = tbody.querySelectorAll('input[name="percent[]"]');
+    const rows = tbody.querySelectorAll("tr");
+
     let totalPercent = 0;
 
-    // Loop each row and update its amount display
-    const rows = tbody.querySelectorAll("tr.savings-row");
-    rows.forEach(row => {
-      const percentInput = row.querySelector(".percent-input");
-      const amountDisplay = row.querySelector(".amount-display");
-
-      const p = parseFloat(percentInput?.value || "0") || 0;
-      totalPercent += p;
-
-      // Compute row amount from leftover money
-      const rowAmount = moneyLeft * (p / 100.0);
-
-      // Update row display
-      if (amountDisplay) amountDisplay.textContent = formatCurrency(rowAmount);
+    // --- Pass 1: sum percents
+    percentInputs.forEach((input) => {
+      const p = parsePercent(input.value);
+      if (p >= 0) totalPercent += p;
     });
 
-    // Compute totals
-    const totalSaved = moneyLeft * (totalPercent / 100.0);
-    const leftAfter = moneyLeft - totalSaved;
+    // keep it neat
+    totalPercent = Math.round(totalPercent * 100) / 100;
 
-    // Update totals UI
-    totalPercentDisplay.textContent = formatPercent(totalPercent);
-    totalSavedDisplay.textContent = formatCurrency(totalSaved);
-    leftAfterSavingsDisplay.textContent = formatCurrency(leftAfter);
+    // --- Pass 2: update each row's dollar amount display
+    rows.forEach((row) => {
+      const percentInput = row.querySelector('input[name="percent[]"]');
+      const amountEl = row.querySelector(".amount-display");
 
-    // Update top summary numbers too (these are static from backend,
-    // but formatting them here keeps the UI consistent)
-    totalNetDisplay.textContent = formatCurrency({{ total_net|default(0) }});
-    totalSpentDisplay.textContent = formatCurrency({{ total_spent|default(0) }});
-    moneyLeftDisplay.textContent = formatCurrency(moneyLeft);
+      if (!percentInput || !amountEl) return;
+
+      const p = parsePercent(percentInput.value);
+      const rowAmount = MONEY_LEFT * (p / 100);
+
+      amountEl.textContent = formatMoney(rowAmount);
+    });
+
+    // --- Totals
+    const totalSaved = MONEY_LEFT * (totalPercent / 100);
+    const leftAfter = MONEY_LEFT - totalSaved;
+
+    const percentEl = document.getElementById("total-percent");
+    const savedEl = document.getElementById("total-saved");
+    const leftEl = document.getElementById("left-after");
+
+    if (percentEl) percentEl.textContent = totalPercent.toFixed(2);
+    if (savedEl) savedEl.textContent = formatMoney(totalSaved);
+    if (leftEl) leftEl.textContent = formatMoney(leftAfter);
   }
 
-  // ------------------------------------------------------------
-  // When the bucket changes, we update the name input's datalist
-  // so suggestions match the selected bucket.
-  // ------------------------------------------------------------
-  function handleBucketChange(row) {
-    const bucketSelect = row.querySelector(".bucket-select");
-    const nameInput = row.querySelector(".name-input");
+  // ============================================================
+  // 3) PAGE LOAD + EVENT HOOKS
+  // ============================================================
+  document.addEventListener("DOMContentLoaded", () => {
+    const addBtn = document.getElementById("add-savings-btn");
+    const tbody = document.getElementById("savings-body");
 
-    if (!bucketSelect || !nameInput) return;
+    // Run once on load so existing saved rows display amounts immediately
+    updateSavingsTotals();
 
-    const bucketValue = bucketSelect.value;
-    const bucketId = bucketToId(bucketValue);
-
-    // Point the name input to the correct datalist
-    nameInput.setAttribute("list", "datalist-" + bucketId);
-  }
-
-  // ------------------------------------------------------------
-  // Add a new row to the table.
-  // Mirrors the shape of existing rows:
-  //   allocation_id[] = ""  (blank means "create new")
-  // ------------------------------------------------------------
-  function addRow() {
-    // Build the row as HTML so it's easy to keep structure consistent
-    const tr = document.createElement("tr");
-    tr.className = "savings-row";
-
-    // Build bucket options from server-provided list (Jinja loop).
-    // We embed the options HTML directly into the JS template.
-    const bucketOptionsHtml = `
-      <option value="" selected>— Select —</option>
-      {% for b in savings_buckets %}
-        <option value="{{ b }}">{{ b }}</option>
-      {% endfor %}
-    `;
-
-    tr.innerHTML = `
-      <td>
-        <input type="hidden" name="allocation_id[]" value="" />
-        <select name="bucket[]" class="bucket-select form-select">
-          ${bucketOptionsHtml}
-        </select>
-      </td>
-
-      <td>
-        <input
-          type="text"
-          name="name[]"
-          class="name-input form-input"
-          placeholder="e.g., Roth IRA, Emergency, Vacation"
-          value=""
-          list="datalist-Other"
-        />
-      </td>
-
-      <td>
-        <input
-          type="number"
-          name="percent[]"
-          class="percent-input form-input"
-          min="0"
-          max="100"
-          step="0.01"
-          value=""
-        />
-      </td>
-
-      <td>
-        <span class="amount-display">$0.00</span>
-      </td>
-
-      <td>
-        <button type="button" class="btn btn-danger btn-sm remove-row-btn">✕</button>
-      </td>
-    `;
-
-    tbody.appendChild(tr);
-
-    // Hook up behavior for new row:
-    // - bucket change updates datalist
-    // - percent input recalculates totals
-    wireRowEvents(tr);
-
-    // Recalc after adding so totals stay correct
-    recalcAll();
-  }
-
-  // ------------------------------------------------------------
-  // Remove a row from the DOM.
-  // IMPORTANT:
-  // - This DOES NOT delete anything immediately.
-  // - Actual delete happens when user clicks "Save Savings":
-  //     - removed row won't be in submitted IDs
-  //     - backend soft-deletes it
-  // ------------------------------------------------------------
-  function removeRow(row) {
-    row.remove();
-    recalcAll();
-  }
-
-  // ------------------------------------------------------------
-  // Attach all necessary events to a row
-  // ------------------------------------------------------------
-  function wireRowEvents(row) {
-    const percentInput = row.querySelector(".percent-input");
-    const bucketSelect = row.querySelector(".bucket-select");
-    const removeBtn = row.querySelector(".remove-row-btn");
-
-    if (percentInput) {
-      // Any time percent changes, update row amount + totals
-      percentInput.addEventListener("input", recalcAll);
-      percentInput.addEventListener("change", recalcAll);
-    }
-
-    if (bucketSelect) {
-      // Swap datalist suggestions when bucket changes
-      bucketSelect.addEventListener("change", function () {
-        handleBucketChange(row);
-      });
-
-      // Also initialize the correct list on load
-      handleBucketChange(row);
-    }
-
-    if (removeBtn) {
-      removeBtn.addEventListener("click", function () {
-        removeRow(row);
+    // Live totals while typing percent
+    if (tbody) {
+      tbody.addEventListener("input", (event) => {
+        const target = event.target;
+        if (target && target.matches('input[name="percent[]"]')) {
+          updateSavingsTotals();
+        }
       });
     }
-  }
 
-  // ------------------------------------------------------------
-  // Wire existing rows on page load
-  // ------------------------------------------------------------
-  tbody.querySelectorAll("tr.savings-row").forEach(wireRowEvents);
+    // Add Savings row button
+    function addSavingsRow() {
+      const tr = document.createElement("tr");
+      tr.style.borderBottom = "1px solid var(--color-border)";
 
-  // ------------------------------------------------------------
-  // Wire add-row button
-  // ------------------------------------------------------------
-  addRowBtn.addEventListener("click", addRow);
+      // Hidden id must exist for backend alignment
+      const hiddenId = document.createElement("input");
+      hiddenId.type = "hidden";
+      hiddenId.name = "allocation_id[]";
+      hiddenId.value = "";
+      tr.appendChild(hiddenId);
 
-  // ------------------------------------------------------------
-  // Initial UI computation on page load
-  // ------------------------------------------------------------
-  recalcAll();
+      // Build the row using the same styling pattern as Expenses
+      tr.innerHTML += `
+        <td class="px-4 py-2">
+          <select
+            name="bucket[]"
+            class="w-full rounded px-2 py-2"
+            style="
+              background-color: var(--color-input-bg);
+              border: 1px solid var(--color-border);
+              color: var(--color-text);
+            "
+          >
+            <option value="" selected>Pick…</option>
+            {% for b in savings_buckets %}
+              <option value="{{ b }}">{{ b }}</option>
+            {% endfor %}
+          </select>
+        </td>
 
-})();
+        <td class="px-4 py-2">
+          <input
+            type="text"
+            name="name[]"
+            value=""
+            placeholder="e.g., Emergency Fund"
+            class="w-full rounded px-3 py-2"
+            style="
+              background-color: var(--color-input-bg);
+              border: 1px solid var(--color-border);
+              color: var(--color-text);
+            "
+          >
+        </td>
+
+        <td class="px-4 py-2">
+          <input
+            type="number"
+            name="percent[]"
+            value=""
+            step="0.01"
+            min="0"
+            max="100"
+            placeholder="0.00"
+            class="w-full rounded px-3 py-2 percent-input"
+            style="
+              background-color: var(--color-input-bg);
+              border: 1px solid var(--color-border);
+              color: var(--color-text);
+            "
+          >
+        </td>
+
+        <td class="px-4 py-2">
+          <span class="amount-display" style="color: var(--color-text-secondary);">0.00</span>
+        </td>
+
+        <td class="px-4 py-2">
+          <button type="button"
+                  class="text-sm font-semibold hover:underline"
+                  style="color: var(--color-error);"
+                  onclick="removeSavingsRow(this)">
+            Remove
+          </button>
+        </td>
+      `;
+
+      tbody.appendChild(tr);
+      updateSavingsTotals();
+    }
+
+    if (addBtn) addBtn.addEventListener("click", addSavingsRow);
+  });
 </script>
+
 {% endblock %}
