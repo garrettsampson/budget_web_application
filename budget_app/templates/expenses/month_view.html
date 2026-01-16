@@ -18,23 +18,19 @@
 
    IMPORTANT FORM NAME RULE
    ------------------------
-   (OLD)
-     The inputs are named:
-       item[]  and  cost[]
-     so Flask can read them like:
-       items = request.form.getlist("item[]")
-       costs = request.form.getlist("cost[]")
+   We submit FOUR parallel lists (arrays). This is CRITICAL.
+   Every visible row MUST include ALL FOUR fields, in the same order:
 
-   (NEW - UPDATED FOR CATEGORY + DESCRIPTION)
-     We now submit THREE parallel lists:
-       category[]     -> dropdown category bucket (for analytics)
-       description[]  -> free text detail (for what/why)
-       cost[]         -> dollar amount
+     expense_id[]    -> hidden DB id for updates (blank means INSERT new)
+     category[]      -> dropdown category bucket (for analytics)
+     description[]   -> free text detail (for what/why)
+     cost[]          -> dollar amount
 
-     Flask reads them like:
-       categories    = request.form.getlist("category[]")
-       descriptions  = request.form.getlist("description[]")
-       costs         = request.form.getlist("cost[]")
+   Flask reads them like:
+     expense_ids   = request.form.getlist("expense_id[]")
+     categories    = request.form.getlist("category[]")
+     descriptions  = request.form.getlist("description[]")
+     costs         = request.form.getlist("cost[]")
 
    THEMING
    -------
@@ -132,20 +128,11 @@
              ------------------------------------------------------------ #}
           {% for e in expenses %}
           <tr style="border-bottom: 1px solid var(--color-border);">
+
+            <!-- Hidden ID tells backend: UPDATE this row -->
             <input type="hidden" name="expense_id[]" value="{{ e.id }}">
 
-
-            <!-- =========================================================
-                 CATEGORY + DESCRIPTION CELL
-                 ---------------------------------------------------------
-                 We store TWO pieces of text for analytics + detail:
-
-                 - category[]: dropdown category bucket (ex: "Pet Care")
-                 - description[]: detailed note (ex: "George's Check Up")
-
-                 That means selecting a dropdown category does NOT replace
-                 the description unless the description is empty.
-                 ========================================================= -->
+            <!-- Category -->
             <td class="px-4 py-2">
               <select
                 name="category[]"
@@ -154,7 +141,8 @@
                        border: 1px solid var(--color-border);
                        color: var(--color-text);"
               >
-                <option value="">Pick…</option>
+                {# If e.category is empty/None, default to Pick… #}
+                <option value="" {% if not e.category %}selected{% endif %}>Pick…</option>
 
                 {% for c in expense_categories %}
                   <option value="{{ c }}" {% if e.category == c %}selected{% endif %}>
@@ -162,13 +150,13 @@
                   </option>
                 {% endfor %}
 
-                <!-- If they want a custom category, they can leave blank and just type description.
-                     We keep "Custom" as a UI idea, but we treat it as "no category" in backend
-                     (because it doesn't help analytics). -->
-                <option value="__custom__" {% if not e.category %}selected{% endif %}>Custom</option>
+                {# "Custom" option exists for UX, but backend should treat it like no category
+                   unless you later implement permanent custom categories. #}
+                <option value="__custom__">Custom</option>
               </select>
             </td>
 
+            <!-- Description -->
             <td class="px-4 py-2">
               <input
                 type="text"
@@ -182,6 +170,7 @@
               >
             </td>
 
+            <!-- Cost -->
             <td class="px-4 py-2">
               <input
                 type="number"
@@ -197,8 +186,8 @@
               >
             </td>
 
+            <!-- Row actions -->
             <td class="px-4 py-2">
-              <!-- Optional: remove row (only removes from the page; save to persist) -->
               <button type="button"
                       class="text-sm font-semibold hover:underline"
                       style="color: var(--color-error);"
@@ -220,8 +209,9 @@
 
           {% for _ in range(blanks) %}
           <tr style="border-bottom: 1px solid var(--color-border);">
-            <input type="hidden" name="expense_id[]" value="">
 
+            <!-- Hidden ID blank tells backend: INSERT a new row if filled -->
+            <input type="hidden" name="expense_id[]" value="">
 
             <!-- Category -->
             <td class="px-4 py-2">
@@ -287,7 +277,7 @@
       </table>
     </div>
 
-    <!-- TOTALS (from backend) -->
+    <!-- TOTALS (from backend initially, then updated live by JS) -->
     <div class="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-4">
 
       <!-- MONEY SPENT -->
@@ -325,32 +315,59 @@
 </div>
 
 <!-- ============================================================
-     JAVASCRIPT
+     JAVASCRIPT (SINGLE CLEAN SCRIPT)
      ------------------------------------------------------------
      Contains:
-       - Remove row behavior
+       - Remove row behavior (and updates totals)
        - Live totals updates
        - Dropdown -> Description auto-fill (only if description is empty)
        - Add Expense row generator (creates correct named fields)
 ============================================================ -->
 <script>
-  // ============================================================
-  // 1) REMOVE ROW (existing rows)
-  // ============================================================
-  // Called by: onclick="removeExpenseRow(this)"
-  // Removes the row from the page AND updates totals immediately.
-  function removeExpenseRow(buttonEl) {
-    const row = buttonEl.closest("tr");
-    if (row) row.remove();
-    updateExpenseTotals();
-  }
+/*
+=============================================================================
+EXPENSES MONTH VIEW — SINGLE CLEAN SCRIPT (NO DUPLICATES)
+=============================================================================
 
-  // ============================================================
-  // 2) LIVE TOTALS CALCULATION (Money Spent + Money Left)
-  // ============================================================
+This script handles FOUR things:
+
+1) Removing rows from the table (and updating totals)
+2) Live recalculation of totals when costs change
+3) Category -> Description autofill (ONLY if description is empty)
+4) Adding a new row that matches backend expectations exactly:
+      expense_id[]
+      category[]
+      description[]
+      cost[]
+
+IMPORTANT:
+----------
+The backend reads parallel arrays. Every row must contain all fields,
+in the same order. This script guarantees that.
+=============================================================================
+*/
+
+document.addEventListener("DOMContentLoaded", () => {
+
+  // ------------------------------------------------------------
+  // Grab DOM references once (clean + fast)
+  // ------------------------------------------------------------
+  const tbody = document.getElementById("expenses-body");
+  const addBtn = document.getElementById("add-expense-btn");
+
+  // If the table body isn't found, we can't do anything safely.
+  // (Prevents JS errors if this script somehow loads on other pages.)
+  if (!tbody) return;
+
+  // ------------------------------------------------------------
+  // CONSTANT: Net income for the month (used for Money Left)
+  // ------------------------------------------------------------
   const TOTAL_NET = {{ total_net|tojson }};
 
-  // Format a number into a money string: 1234.5 -> "1,234.50"
+  // ------------------------------------------------------------
+  // Utility: format a number as money text with 2 decimals
+  // Example: 1234.5 -> "1,234.50"
+  // ------------------------------------------------------------
   function formatMoney(value) {
     const num = Number(value) || 0;
     return num.toLocaleString(undefined, {
@@ -359,9 +376,11 @@
     });
   }
 
-  // Parse a cost input safely:
+  // ------------------------------------------------------------
+  // Utility: safely parse cost values
   // - empty -> 0
   // - invalid -> 0
+  // ------------------------------------------------------------
   function parseCost(value) {
     const cleaned = (value || "").toString().trim();
     if (!cleaned) return 0;
@@ -372,11 +391,12 @@
     return n;
   }
 
-  // Sum all cost[] inputs and update the Money Spent / Money Left display
+  // ------------------------------------------------------------
+  // Recalculate totals:
+  //   Money Spent = sum(cost[])
+  //   Money Left  = TOTAL_NET - Money Spent
+  // ------------------------------------------------------------
   function updateExpenseTotals() {
-    const tbody = document.getElementById("expenses-body");
-    if (!tbody) return;
-
     const costInputs = tbody.querySelectorAll('input[name="cost[]"]');
 
     let totalSpent = 0;
@@ -385,6 +405,7 @@
       if (cost >= 0) totalSpent += cost;
     });
 
+    // Round to 2 decimals to avoid floating point issues
     totalSpent = Math.round(totalSpent * 100) / 100;
 
     const moneyLeft = Math.round((TOTAL_NET - totalSpent) * 100) / 100;
@@ -396,178 +417,158 @@
     if (leftEl) leftEl.textContent = formatMoney(moneyLeft);
   }
 
-  // ============================================================
-  // 3) PAGE LOAD + EVENT HOOKS
-  // ============================================================
-  document.addEventListener("DOMContentLoaded", () => {
-    const addBtn = document.getElementById("add-expense-btn");
-    const tbody = document.getElementById("expenses-body");
-
-    // ------------------------------------------------------------
-    // 3A) Run totals once immediately on load
-    // ------------------------------------------------------------
+  // ------------------------------------------------------------
+  // Global remove function
+  // Called by: onclick="removeExpenseRow(this)"
+  //
+  // IMPORTANT:
+  // - This removes the row from the UI.
+  // - Backend "soft-deletes" rows that are missing when you Save.
+  // ------------------------------------------------------------
+  window.removeExpenseRow = function(buttonEl) {
+    const row = buttonEl.closest("tr");
+    if (row) row.remove();
     updateExpenseTotals();
+  };
 
-    // ------------------------------------------------------------
-    // 3B) Live totals while typing in cost inputs
-    // ------------------------------------------------------------
-    // Event delegation = works for existing rows AND new rows you add.
-    if (tbody) {
-      tbody.addEventListener("input", (event) => {
-        const target = event.target;
-        if (target && target.matches('input[name="cost[]"]')) {
-          updateExpenseTotals();
-        }
-      });
-    }
+  // ------------------------------------------------------------
+  // Category -> Description autofill
+  // Only fills if description is currently blank.
+  // Does NOT overwrite custom text.
+  // ------------------------------------------------------------
+  tbody.addEventListener("change", (event) => {
+    const target = event.target;
 
-    // ------------------------------------------------------------
-    // 3C) Category -> Description autofill (ONLY if description is empty)
-    // ------------------------------------------------------------
-    // This is the behavior you requested:
-    // - If description is empty and you pick "Pet Care" -> description becomes "Pet Care"
-    // - If description already contains "George's Check Up" -> DO NOT overwrite it
-    if (tbody) {
-      tbody.addEventListener("change", (event) => {
-        const target = event.target;
+    // Only act when the changed element is a category dropdown
+    if (!target || !target.classList.contains("expense-category-select")) return;
 
-        // Only run this logic for the category dropdowns
-        if (!target || !target.classList.contains("expense-category-select")) return;
+    const selectedValue = target.value;
 
-        const selectedValue = target.value;
+    // If blank or custom, do nothing
+    if (!selectedValue || selectedValue === "__custom__") return;
 
-        // If they choose Custom or blank, we do nothing.
-        if (!selectedValue || selectedValue === "__custom__") return;
+    const row = target.closest("tr");
+    if (!row) return;
 
-        // Find the description input in the same row
-        const row = target.closest("tr");
-        if (!row) return;
+    const descInput = row.querySelector('input[name="description[]"]');
+    if (!descInput) return;
 
-        const descInput = row.querySelector('input[name="description[]"]');
-        if (!descInput) return;
-
-        // Only fill if blank (so we never overwrite custom text)
-        const current = (descInput.value || "").trim();
-        if (current === "") {
-          descInput.value = selectedValue;
-        }
-      });
-    }
-
-    // ------------------------------------------------------------
-    // 3D) Add Expense button row creation
-    // ------------------------------------------------------------
-    // This MUST create fields with correct name="" attributes:
-    //   category[] / description[] / cost[]
-    function addExpenseRow() {
-        const tr = document.createElement("tr");
-        tr.style.borderBottom = "1px solid var(--color-border)";
-
-        // --------------------------------------------------
-        // B3: ROW IDENTITY (NEW ROW)
-        // --------------------------------------------------
-        // Every row MUST submit an expense_id[] value.
-        // Existing rows use their database ID.
-        // New rows use an empty value ("") so backend knows to INSERT.
-        const hiddenId = document.createElement("input");
-        hiddenId.type = "hidden";
-        hiddenId.name = "expense_id[]";
-        hiddenId.value = "";
-
-        // Hidden inputs can live directly inside <tr>
-        tr.appendChild(hiddenId);
-
-        // --------------------------------------------------
-        // Item cell (dropdown + text input)
-        // --------------------------------------------------
-        const tdItem = document.createElement("td");
-        tdItem.className = "px-4 py-2";
-        tdItem.innerHTML = `
-            <div class="flex gap-2">
-            <select
-                class="expense-category-select rounded px-2 py-2"
-                style="
-                background-color: var(--color-input-bg);
-                border: 1px solid var(--color-border);
-                color: var(--color-text);
-                min-width: 180px;
-                "
-            >
-                <option value="" selected>Pick…</option>
-                {% for c in expense_categories %}
-                <option value="{{ c }}">{{ c }}</option>
-                {% endfor %}
-                <option value="__custom__">Custom</option>
-            </select>
-
-            <input
-                type="text"
-                name="description[]"
-                value=""
-                placeholder="e.g., Pet Food"
-                class="w-full rounded px-3 py-2"
-                style="
-                background-color: var(--color-input-bg);
-                border: 1px solid var(--color-border);
-                color: var(--color-text);
-                "
-            >
-            </div>
-        `;
-
-        // --------------------------------------------------
-        // Cost cell
-        // --------------------------------------------------
-        const tdCost = document.createElement("td");
-        tdCost.className = "px-4 py-2";
-        tdCost.innerHTML = `
-            <input
-            type="number"
-            name="cost[]"
-            value=""
-            step="0.01"
-            min="0"
-            placeholder="0.00"
-            class="w-full rounded px-3 py-2"
-            style="
-                background-color: var(--color-input-bg);
-                border: 1px solid var(--color-border);
-                color: var(--color-text);
-            "
-            >
-        `;
-
-        // --------------------------------------------------
-        // Remove button
-        // --------------------------------------------------
-        const tdRemove = document.createElement("td");
-        tdRemove.className = "px-4 py-2";
-        tdRemove.innerHTML = `
-            <button type="button"
-                    class="text-sm font-semibold hover:underline"
-                    style="color: var(--color-error);">
-            Remove
-            </button>
-        `;
-
-        tdRemove.querySelector("button").addEventListener("click", () => {
-            tr.remove();
-            updateExpenseTotals();
-        });
-
-        tr.appendChild(tdItem);
-        tr.appendChild(tdCost);
-        tr.appendChild(tdRemove);
-
-        tbody.appendChild(tr);
-        updateExpenseTotals();
-        }
-
-
-    if (addBtn) {
-      addBtn.addEventListener("click", addExpenseRow);
+    // Only fill if blank (so we never overwrite custom text)
+    const current = (descInput.value || "").trim();
+    if (current === "") {
+      descInput.value = selectedValue;
     }
   });
+
+  // ------------------------------------------------------------
+  // Live totals while typing in cost inputs
+  // Event delegation = works for existing rows AND new rows you add.
+  // ------------------------------------------------------------
+  tbody.addEventListener("input", (event) => {
+    const target = event.target;
+    if (target && target.matches('input[name="cost[]"]')) {
+      updateExpenseTotals();
+    }
+  });
+
+  // ------------------------------------------------------------
+  // Add Expense row generator (this is the glitch fix)
+  //
+  // KEY RULE:
+  // Every new row MUST contain:
+  //   expense_id[] (hidden)
+  //   category[] (select)
+  //   description[] (input)
+  //   cost[] (input)
+  // ------------------------------------------------------------
+  function addExpenseRow() {
+    const tr = document.createElement("tr");
+    tr.style.borderBottom = "1px solid var(--color-border)";
+
+    tr.innerHTML = `
+      <input type="hidden" name="expense_id[]" value="">
+
+      <!-- CATEGORY -->
+      <td class="px-4 py-2">
+        <select
+          name="category[]"
+          class="expense-category-select w-full rounded px-2 py-2"
+          style="
+            background-color: var(--color-input-bg);
+            border: 1px solid var(--color-border);
+            color: var(--color-text);
+          "
+        >
+          <option value="" selected>Pick…</option>
+          {% for c in expense_categories %}
+            <option value="{{ c }}">{{ c }}</option>
+          {% endfor %}
+          <option value="__custom__">Custom</option>
+        </select>
+      </td>
+
+      <!-- DESCRIPTION -->
+      <td class="px-4 py-2">
+        <input
+          type="text"
+          name="description[]"
+          value=""
+          placeholder="e.g., Netflix, Groceries"
+          class="w-full rounded px-3 py-2"
+          style="
+            background-color: var(--color-input-bg);
+            border: 1px solid var(--color-border);
+            color: var(--color-text);
+          "
+        >
+      </td>
+
+      <!-- COST -->
+      <td class="px-4 py-2">
+        <input
+          type="number"
+          name="cost[]"
+          value=""
+          step="0.01"
+          min="0"
+          placeholder="0.00"
+          class="w-full rounded px-3 py-2"
+          style="
+            background-color: var(--color-input-bg);
+            border: 1px solid var(--color-border);
+            color: var(--color-text);
+          "
+        >
+      </td>
+
+      <!-- ROW ACTION -->
+      <td class="px-4 py-2">
+        <button
+          type="button"
+          class="text-sm font-semibold hover:underline"
+          style="color: var(--color-error);"
+          onclick="removeExpenseRow(this)"
+        >
+          Remove
+        </button>
+      </td>
+    `;
+
+    tbody.appendChild(tr);
+
+    // Immediately update totals so the UI stays accurate.
+    // (New blank row won't change numbers, but this keeps behavior consistent.)
+    updateExpenseTotals();
+  }
+
+  // Wire up the Add Expense button
+  if (addBtn) {
+    addBtn.addEventListener("click", addExpenseRow);
+  }
+
+  // Run totals once on load so amounts match what’s actually in inputs
+  updateExpenseTotals();
+});
 </script>
 
 {% endblock %}
