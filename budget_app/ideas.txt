@@ -39,3 +39,11 @@ Later down the line there should be more visual representation of progress, pay 
 For the summary at the end we should add in total amount of hours worked, and a ton of information just for fun. Myabe add in a 
 feature that is like "Good job, you worked 10 hours less this year and still made $1000 more!, something that can analyze and 
 give simple feedback. 
+
+“Implement effective-dated archive/unarchive timeline for expense/savings bucket+name options.”
+“Options have a created effective month (don’t appear before created).”
+“Archive/unarchive writes events effective for the current month page.”
+“Prevent no-op actions; show No change needed.”
+“Archived hidden by default; Show archived toggle at top.”
+“Past months must render identically and remain editable; no archive labels.”
+“Archive/Unarchive requires confirmation modal.”
