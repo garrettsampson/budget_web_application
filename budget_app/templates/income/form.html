@@ -1,327 +1,264 @@
 {% extends "base.html" %}
-
 {% block content %}
 
-<h2 class="text-2xl font-bold mb-4" style="color: var(--color-text);">Income Calculation</h2>
-
-<p class="mb-4" style="color: var(--color-text-secondary);">
-  Enter your weekly income details below. We will calculate your gross and net pay
-  for this week and store it under the selected year and month.
-</p>
-
-<!-- FORM CARD -->
-<form 
-  method="post"
-  class="shadow rounded-lg p-6 space-y-4"
-  style="
-    background-color: var(--color-card-bg);
-    border: 1px solid var(--color-border);
-  "
->
-
-  <!-- YEAR -->
-  <div>
-    <label style="color: var(--color-text)">Year</label>
-
-    <input type="hidden" name="year" id="year">
-
-    <div class="flex gap-2 flex-wrap mt-2" id="year-chip-container"></div>
-
-    <script>
-    document.addEventListener("DOMContentLoaded", () => {
-
-        const yearInput = document.getElementById("year");
-        const container = document.getElementById("year-chip-container");
-
-        const currentYear = parseInt("{{ current_year }}");
-
-        const years = [];
-        for (let y = currentYear - 3; y <= currentYear + 3; y++) {
-            years.push(y);
-        }
-
-        function renderYearChips(selectedYear) {
-            container.innerHTML = "";
-
-            years.forEach(y => {
-                const chip = document.createElement("button");
-                chip.type = "button";
-                chip.textContent = y;
-
-                chip.className =
-                    "px-3 py-1 rounded-full text-sm border transition hover:text-white";
-
-                chip.style.borderColor = "var(--color-border)";
-
-                if (y === selectedYear) {
-                    chip.style.backgroundColor = "var(--color-primary)";
-                    chip.style.color = "white";
-                } else {
-                    chip.style.backgroundColor = "var(--color-card-bg)";
-                    chip.style.color = "var(--color-text)";
-                }
-
-                chip.addEventListener("click", () => {
-                    yearInput.value = y;
-                    renderYearChips(y);
-                    renderCalendar();
-                });
-
-                container.appendChild(chip);
-            });
-        }
-
-        yearInput.value = currentYear;
-        renderYearChips(currentYear);
-    });
-    </script>
-  </div>
-
-  <!-- MONTH -->
-  <div>
-    <label style="color: var(--color-text);">Month</label>
-
-    <input type="hidden" name="month" id="month">
-    <div class="flex gap-2 flex-wrap mt-2" id="month-chip-container"></div>
-
-    <script>
-    document.addEventListener("DOMContentLoaded", () => {
-        const monthInput = document.getElementById("month");
-        const container = document.getElementById("month-chip-container");
-        const currentMonth = parseInt("{{ current_month }}");
-
-        const months = [
-            "Jan","Feb","Mar","Apr","May","Jun",
-            "Jul","Aug","Sep","Oct","Nov","Dec"
-        ];
-
-        function renderMonthChips(selectedMonth) {
-            container.innerHTML = "";
-
-            months.forEach((name, index) => {
-                const monthNumber = index + 1;
-
-                const chip = document.createElement("button");
-                chip.type = "button";
-                chip.textContent = name;
-
-                chip.className =
-                    "px-3 py-1 rounded-full text-sm border transition hover:text-white";
-
-                chip.style.borderColor = "var(--color-border)";
-
-                if (monthNumber === selectedMonth) {
-                    chip.style.backgroundColor = "var(--color-primary)";
-                    chip.style.color = "white";
-                } else {
-                    chip.style.backgroundColor = "var(--color-card-bg)";
-                    chip.style.color = "var(--color-text)";
-                }
-
-                chip.addEventListener("click", () => {
-                    monthInput.value = monthNumber;
-                    renderMonthChips(monthNumber);
-                    renderCalendar();
-                });
-
-                container.appendChild(chip);
-            });
-        }
-
-        monthInput.value = currentMonth;
-        renderMonthChips(currentMonth);
-    });
-    </script>
-  </div>
-
-  <!-- WEEK SELECTOR -->
-  <div>
-    <label style="color: var(--color-text);">Select Week</label>
-
-    <input type="hidden" name="week_index" id="week_index">
-    <div id="calendar-container" class="mt-3"></div>
-
-    <p id="week-selected-label" class="mt-2 text-sm" style="color: var(--color-text-secondary);"></p>
-
-    <script>
-    document.addEventListener("DOMContentLoaded", () => {
-
-        const yearInput  = document.getElementById("year");
-        const monthInput = document.getElementById("month");
-        const weekInput  = document.getElementById("week_index");
-        const calendarContainer = document.getElementById("calendar-container");
-        const weekLabel = document.getElementById("week-selected-label");
-
-        const weekdays = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
-
-        function computeWeekRange(year, month, rowIndex) {
-            const firstDay = new Date(year, month - 1, 1).getDay();
-            const daysInMonth = new Date(year, month, 0).getDate();
-
-            let startDay = 1 - firstDay + rowIndex * 7;
-
-            const days = [];
-            for (let i = 0; i < 7; i++) {
-                const d = startDay + i;
-                days.push(d >= 1 && d <= daysInMonth ? d : null);
-            }
-
-            const monthName = new Date(year, month - 1).toLocaleString("default", { month: "short" });
-
-            const firstReal = days.find(d => d !== null);
-            const lastReal  = [...days].reverse().find(d => d !== null);
-
-            if (!firstReal || !lastReal) return "";
-
-            return `${monthName} ${firstReal} – ${monthName} ${lastReal}, ${year}`;
-        }
-
-        function highlightWeek(rowIndex) {
-            const cells = calendarContainer.querySelectorAll(".calendar-day-cell");
-
-            cells.forEach(cell => {
-                const r = parseInt(cell.dataset.row, 10);
-
-                cell.style.backgroundColor = "var(--color-card-bg)";
-                cell.style.color = "var(--color-text)";
-
-                if (r === rowIndex) {
-                    cell.style.backgroundColor = "var(--color-primary)";
-                    cell.style.color = "white";
-                }
-            });
-
-            const range = computeWeekRange(
-                parseInt(yearInput.value),
-                parseInt(monthInput.value),
-                rowIndex
-            );
-
-            weekLabel.textContent = `Selected: Week ${rowIndex + 1} (${range})`;
-        }
-
-        function renderCalendar() {
-            const year = parseInt(yearInput.value);
-            const month = parseInt(monthInput.value);
-
-            calendarContainer.innerHTML = "";
-
-            const calendar = document.createElement("div");
-            calendar.className = "grid grid-cols-7 gap-1 text-sm";
-
-            weekdays.forEach(day => {
-                const h = document.createElement("div");
-                h.textContent = day;
-                h.className = "font-semibold text-center";
-                h.style.color = "var(--color-text)";
-                calendar.appendChild(h);
-            });
-
-            const firstDay = new Date(year, month - 1, 1).getDay();
-            const daysInMonth = new Date(year, month, 0).getDate();
-
-            let currentDay = 1;
-
-            for (let r = 0; r < 6; r++) {
-                for (let c = 0; c < 7; c++) {
-
-                    const cell = document.createElement("div");
-                    cell.className = "p-2 text-center rounded cursor-pointer transition";
-                    cell.style.backgroundColor = "var(--color-card-bg)";
-                    cell.style.border = "1px solid var(--color-border)";
-                    cell.style.color = "var(--color-text)";
-
-                    if ((r === 0 && c < firstDay) || currentDay > daysInMonth) {
-                        cell.textContent = "";
-                        cell.style.opacity = "0.3";
-                    } else {
-                        const dayNum = currentDay++;
-                        cell.textContent = dayNum;
-
-                        cell.classList.add("calendar-day-cell");
-                        cell.dataset.row = r.toString();
-
-                        cell.addEventListener("click", () => {
-                            weekInput.value = r + 1;
-                            highlightWeek(r);
-                        });
-                    }
-
-                    calendar.appendChild(cell);
-                }
-            }
-
-            calendarContainer.appendChild(calendar);
-
-            if (weekInput.value) {
-                highlightWeek(parseInt(weekInput.value) - 1);
-            }
-        }
-
-        window.renderCalendar = renderCalendar;
-        renderCalendar();
-    });
-    </script>
-  </div>
-
-  <!-- HOURLY PAY -->
-  <div>
-    <label class="block text-sm font-medium mb-1" style="color: var(--color-text);">Hourly Pay ($)</label>
-    <input
-      id="hourly_pay"
-      name="hourly_pay"
-      type="number"
-      step="0.01"
-      class="w-full rounded px-3 py-2"
-      style="background-color: var(--color-input-bg); border: 1px solid var(--color-border); color: var(--color-text);"
-      required
-    >
-  </div>
-
-  <!-- HOURS WORKED -->
-  <div>
-    <label class="block text-sm font-medium mb-1" style="color: var(--color-text);">Hours Worked (this week)</label>
-    <input
-      id="hours_worked"
-      name="hours_worked"
-      type="number"
-      step="0.01"
-      class="w-full rounded px-3 py-2"
-      style="background-color: var(--color-input-bg); border: 1px solid var(--color-border); color: var(--color-text);"
-      required
-    >
-  </div>
-
-  <!-- TAX PERCENT -->
-  <div>
-    <label class="block text-sm font-medium mb-1" style="color: var(--color-text);">Tax Percentage (%)</label>
-    <input
-      id="tax_percent"
-      name="tax_percent"
-      type="number"
-      step="0.01"
-      value="10.0"
-      class="w-full rounded px-3 py-2"
-      style="background-color: var(--color-input-bg); border: 1px solid var(--color-border); color: var(--color-text);"
-      required
-    >
-    <p class="text-xs mt-1" style="color: var(--color-text-secondary);">
-      This is an estimate. Adjust it to match how much your real paycheck loses to taxes.
-    </p>
-  </div>
-
-  <!-- BUTTONS -->
-  <div class="pt-4 flex gap-3">
-    <button type="submit" class="btn-primary">Save Week</button>
-    <a href="{{ url_for('income_select_month') }}" class="btn-secondary inline-block">
-      View Monthly Summary
-    </a>
-  </div>
-
-</form>
-
-<p class="mt-4" style="color: var(--color-text-secondary);">
-  After saving, you will automatically be redirected to the monthly summary page.
-</p>
+<h2 class="text-2xl font-bold mb-4" style="color: var(--color-text);">
+  Add Income / Paycheck
+</h2>
+
+<div class="shadow rounded-lg p-6 max-w-2xl"
+     style="background-color: var(--color-card-bg); border: 1px solid var(--color-border);">
+
+  <p class="text-sm mb-4" style="color: var(--color-text-secondary);">
+    Enter income based on when you actually got paid. This works for daily, weekly,
+    biweekly, monthly, irregular, or side-job income.
+  </p>
+
+  <form method="POST" class="space-y-5">
+
+    <div>
+      <label class="block text-sm font-medium mb-1" style="color: var(--color-text);">
+        Pay Date <span style="color: var(--color-error);">*</span>
+      </label>
+      <input
+        type="date"
+        name="pay_date"
+        required
+        value="{{ today }}"
+        class="w-full rounded px-3 py-2"
+        style="background-color: var(--color-input-bg);
+               border: 1px solid var(--color-border);
+               color: var(--color-text);"
+      >
+      <p class="text-xs mt-1" style="color: var(--color-text-secondary);">
+        This decides which month the income counts toward.
+      </p>
+    </div>
+
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div>
+        <label class="block text-sm font-medium mb-1" style="color: var(--color-text);">
+          Pay Period Start
+        </label>
+        <input
+          type="date"
+          name="period_start"
+          class="w-full rounded px-3 py-2"
+          style="background-color: var(--color-input-bg);
+                 border: 1px solid var(--color-border);
+                 color: var(--color-text);"
+        >
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium mb-1" style="color: var(--color-text);">
+          Pay Period End
+        </label>
+        <input
+          type="date"
+          name="period_end"
+          class="w-full rounded px-3 py-2"
+          style="background-color: var(--color-input-bg);
+                 border: 1px solid var(--color-border);
+                 color: var(--color-text);"
+        >
+      </div>
+    </div>
+
+    <div>
+      <label class="block text-sm font-medium mb-1" style="color: var(--color-text);">
+        Net Amount Received <span style="color: var(--color-error);">*</span>
+      </label>
+      <input
+        type="number"
+        name="net_amount"
+        id="net_amount"
+        step="0.01"
+        min="0"
+        required
+        placeholder="Example: 1250.00"
+        class="w-full rounded px-3 py-2"
+        style="background-color: var(--color-input-bg);
+               border: 1px solid var(--color-border);
+               color: var(--color-text);"
+      >
+      <p class="text-xs mt-1" style="color: var(--color-text-secondary);">
+        This is the amount that actually hit your bank account.
+      </p>
+    </div>
+
+    <div class="rounded-lg p-4"
+         style="border: 1px solid var(--color-border); background-color: var(--color-card-bg);">
+
+      <div class="flex items-center gap-2 mb-3">
+        <input type="checkbox" id="show_math_fields">
+        <label for="show_math_fields" class="text-sm font-medium" style="color: var(--color-text);">
+          Add optional hours / gross / tax details
+        </label>
+      </div>
+
+      <div id="optional_math_fields" class="space-y-4" style="display: none;">
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-medium mb-1" style="color: var(--color-text);">
+              Hours Worked
+            </label>
+            <input
+              type="number"
+              name="hours_worked"
+              id="hours_worked"
+              step="0.01"
+              min="0"
+              class="w-full rounded px-3 py-2 calc-input"
+              style="background-color: var(--color-input-bg);
+                     border: 1px solid var(--color-border);
+                     color: var(--color-text);"
+            >
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium mb-1" style="color: var(--color-text);">
+              Hourly Rate
+            </label>
+            <input
+              type="number"
+              name="hourly_rate"
+              id="hourly_rate"
+              step="0.01"
+              min="0"
+              class="w-full rounded px-3 py-2 calc-input"
+              style="background-color: var(--color-input-bg);
+                     border: 1px solid var(--color-border);
+                     color: var(--color-text);"
+            >
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label class="block text-sm font-medium mb-1" style="color: var(--color-text);">
+              Gross Amount
+            </label>
+            <input
+              type="number"
+              name="gross_amount"
+              id="gross_amount"
+              step="0.01"
+              min="0"
+              class="w-full rounded px-3 py-2"
+              style="background-color: var(--color-input-bg);
+                     border: 1px solid var(--color-border);
+                     color: var(--color-text);"
+            >
+          </div>
+
+          <div>
+            <label class="block text-sm font-medium mb-1" style="color: var(--color-text);">
+              Tax / Withholding
+            </label>
+            <input
+              type="number"
+              name="tax_withheld"
+              id="tax_withheld"
+              step="0.01"
+              min="0"
+              class="w-full rounded px-3 py-2 calc-input"
+              style="background-color: var(--color-input-bg);
+                     border: 1px solid var(--color-border);
+                     color: var(--color-text);"
+            >
+          </div>
+        </div>
+
+        <button type="button" id="calculate_pay_btn" class="btn-secondary">
+          Calculate Gross / Net
+        </button>
+
+      </div>
+    </div>
+
+    <div>
+      <label class="block text-sm font-medium mb-1" style="color: var(--color-text);">
+        Pay Type
+      </label>
+      <select
+        name="pay_type"
+        class="w-full rounded px-3 py-2"
+        style="background-color: var(--color-input-bg);
+               border: 1px solid var(--color-border);
+               color: var(--color-text);"
+      >
+        <option value="Paycheck">Paycheck</option>
+        <option value="Side Job">Side Job</option>
+        <option value="Cash">Cash</option>
+        <option value="Refund">Refund</option>
+        <option value="Gift">Gift</option>
+        <option value="Other">Other</option>
+      </select>
+    </div>
+
+    <div>
+      <label class="block text-sm font-medium mb-1" style="color: var(--color-text);">
+        Notes
+      </label>
+      <input
+        type="text"
+        name="notes"
+        placeholder="Optional note"
+        class="w-full rounded px-3 py-2"
+        style="background-color: var(--color-input-bg);
+               border: 1px solid var(--color-border);
+               color: var(--color-text);"
+      >
+    </div>
+
+    <div class="pt-2 flex flex-wrap gap-3">
+      <button type="submit" class="btn-primary">
+        Save Income
+      </button>
+
+      <a href="{{ url_for('income_select_month') }}" class="btn-secondary inline-block">
+        View Monthly Income
+      </a>
+    </div>
+
+  </form>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  const checkbox = document.getElementById("show_math_fields");
+  const optionalFields = document.getElementById("optional_math_fields");
+  const calculateBtn = document.getElementById("calculate_pay_btn");
+
+  const hoursInput = document.getElementById("hours_worked");
+  const rateInput = document.getElementById("hourly_rate");
+  const grossInput = document.getElementById("gross_amount");
+  const taxInput = document.getElementById("tax_withheld");
+  const netInput = document.getElementById("net_amount");
+
+  checkbox.addEventListener("change", () => {
+    optionalFields.style.display = checkbox.checked ? "block" : "none";
+  });
+
+  calculateBtn.addEventListener("click", () => {
+    const hours = Number(hoursInput.value || 0);
+    const rate = Number(rateInput.value || 0);
+    const tax = Number(taxInput.value || 0);
+
+    const gross = hours * rate;
+
+    if (gross > 0) {
+      grossInput.value = gross.toFixed(2);
+    }
+
+    const net = gross - tax;
+
+    if (net >= 0) {
+      netInput.value = net.toFixed(2);
+    }
+  });
+});
+</script>
 
 {% endblock %}

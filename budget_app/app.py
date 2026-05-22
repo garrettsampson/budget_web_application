@@ -3,29 +3,34 @@ app.py
 
 Main Flask application for your budgeting app.
 
-High-Level Flow:
---------------------------------------------------------------------
-1. Create Flask app instance
-2. Load config (DB path, secret key, etc.)
-3. Initialize SQLAlchemy (db) and Flask-Migrate (migrate)
-4. Create tables (dev-only convenience)
-5. Define helper functions (get_current_user)
-6. Define routes
+Now includes:
+- Real user registration
+- Login/logout
+- Session-based current user
+- Route protection so users only access their own budget data
 """
 
-# --------------------------
-# Imports
-# --------------------------
-from datetime import datetime
+from datetime import datetime, date
+from functools import wraps
 
-from flask import Flask, render_template, request, redirect, url_for, flash
+from flask import (
+    Flask,
+    render_template,
+    request,
+    redirect,
+    url_for,
+    flash,
+    session,
+)
 from flask_migrate import Migrate
+from werkzeug.security import generate_password_hash, check_password_hash
 
 from config import Config
 from models import (
     db,
     User,
     IncomeWeek,
+    Paycheck,
     Expense,
     SavingsAllocation,
     ExpenseBucketOption,
@@ -35,100 +40,251 @@ from models import (
 )
 
 
-# ======================================================================
-# APPLICATION FACTORY FUNCTION
-# ======================================================================
 def create_app():
     """Creates and configures the Flask application."""
     app = Flask(__name__)
     app.config.from_object(Config)
 
-    # Connect SQLAlchemy to app
     db.init_app(app)
-
-    # Hook Alembic migrations to this Flask app + db
     Migrate(app, db)
 
-    # Create tables + default user if needed (OK for early dev; later remove)
-    with app.app_context():
-        db.create_all()
-
-        if not User.query.first():
-            dummy_user = User(email="you@example.com")
-            db.session.add(dummy_user)
-            db.session.commit()
+    # IMPORTANT:
+    # We are NOT using db.create_all() anymore.
+    # Database structure should now be handled with:
+    #   flask db migrate
+    #   flask db upgrade
 
     # --------------------------------------------------------------
-    # Helper: current user (dummy for now)
+    # Helper: current logged-in user
     # --------------------------------------------------------------
     def get_current_user():
-        return User.query.first()
+        """
+        Returns the logged-in user based on session["user_id"].
+
+        If nobody is logged in, returns None.
+
+        This replaces the old dummy behavior:
+            return User.query.first()
+
+        Why this matters:
+        - Every user's income/expenses/savings are tied to user_id.
+        - If we always returned the first user, everyone would share data.
+        """
+        user_id = session.get("user_id")
+
+        if not user_id:
+            return None
+
+        return User.query.get(user_id)
+
+    # --------------------------------------------------------------
+    # Decorator: require login before accessing a route
+    # --------------------------------------------------------------
+    def login_required(view_func):
+        """
+        Protects routes that should only be available after login.
+
+        If the user is not logged in:
+        - show a message
+        - redirect them to /login
+        """
+
+        @wraps(view_func)
+        def wrapped_view(*args, **kwargs):
+            if get_current_user() is None:
+                flash("Please log in first.", "error")
+                return redirect(url_for("login"))
+
+            return view_func(*args, **kwargs)
+
+        return wrapped_view
+
+    # ==================================================================
+    # ROUTE: Register
+    # ==================================================================
+    @app.route("/register", methods=["GET", "POST"])
+    def register():
+        """
+        Creates a new user account.
+
+        Form fields expected:
+        - email
+        - password
+        - confirm_password
+        """
+
+        if request.method == "POST":
+            email = (request.form.get("email") or "").strip().lower()
+            password = request.form.get("password") or ""
+            confirm_password = request.form.get("confirm_password") or ""
+
+            if not email:
+                flash("Email is required.", "error")
+                return redirect(url_for("register"))
+
+            if not password:
+                flash("Password is required.", "error")
+                return redirect(url_for("register"))
+
+            if password != confirm_password:
+                flash("Passwords do not match.", "error")
+                return redirect(url_for("register"))
+
+            existing_user = User.query.filter_by(email=email).first()
+
+            if existing_user:
+                flash("An account with that email already exists. Please log in.", "error")
+                return redirect(url_for("login"))
+
+            new_user = User(
+                email=email,
+                password_hash=generate_password_hash(password),
+            )
+
+            db.session.add(new_user)
+            db.session.commit()
+
+            session["user_id"] = new_user.id
+            flash("Account created successfully.", "success")
+
+            return redirect(url_for("home"))
+
+        return render_template("auth/register.html")
+
+    # ==================================================================
+    # ROUTE: Login
+    # ==================================================================
+    @app.route("/login", methods=["GET", "POST"])
+    def login():
+        """
+        Logs in an existing user.
+
+        Form fields expected:
+        - email
+        - password
+        """
+
+        if request.method == "POST":
+            email = (request.form.get("email") or "").strip().lower()
+            password = request.form.get("password") or ""
+
+            user = User.query.filter_by(email=email).first()
+
+            if not user or not user.password_hash:
+                flash("Invalid email or password.", "error")
+                return redirect(url_for("login"))
+
+            if not check_password_hash(user.password_hash, password):
+                flash("Invalid email or password.", "error")
+                return redirect(url_for("login"))
+
+            session["user_id"] = user.id
+            flash("Logged in successfully.", "success")
+
+            return redirect(url_for("home"))
+
+        return render_template("auth/login.html")
+
+    # ==================================================================
+    # ROUTE: Logout
+    # ==================================================================
+    @app.route("/logout")
+    def logout():
+        session.clear()
+        flash("Logged out successfully.", "success")
+        return redirect(url_for("login"))
 
     # ==================================================================
     # ROUTE: Home Dashboard
     # ==================================================================
     @app.route("/")
+    @login_required
     def home():
         return render_template("dashboard.html")
 
     # ==================================================================
     # ROUTE: Weekly Income Form
     # ==================================================================
+# ==================================================================
+    # ROUTE: Paycheck Income Form
+    # ==================================================================
     @app.route("/income", methods=["GET", "POST"])
+    @login_required
     def income_form():
         user = get_current_user()
 
+        def parse_optional_float(value):
+            value = (value or "").strip()
+            if value == "":
+                return None
+            return float(value)
+
+        def parse_optional_date(value):
+            value = (value or "").strip()
+            if value == "":
+                return None
+            return date.fromisoformat(value)
+
         if request.method == "POST":
-            hourly = float(request.form["hourly_pay"])
-            hours = float(request.form["hours_worked"])
-            tax_percent = float(request.form["tax_percent"])
-            year = int(request.form["year"])
-            month = int(request.form["month"])
-            week_index = int(request.form["week_index"])
+            pay_date = date.fromisoformat(request.form["pay_date"])
 
-            existing_entry = IncomeWeek.query.filter_by(
+            period_start = parse_optional_date(request.form.get("period_start"))
+            period_end = parse_optional_date(request.form.get("period_end"))
+
+            net_amount = float(request.form["net_amount"])
+
+            gross_amount = parse_optional_float(request.form.get("gross_amount"))
+            hours_worked = parse_optional_float(request.form.get("hours_worked"))
+            hourly_rate = parse_optional_float(request.form.get("hourly_rate"))
+            tax_withheld = parse_optional_float(request.form.get("tax_withheld"))
+
+            pay_type = (request.form.get("pay_type") or "Paycheck").strip()
+            notes = (request.form.get("notes") or "").strip() or None
+
+            if net_amount < 0:
+                flash("Net amount cannot be negative.", "error")
+                return redirect(url_for("income_form"))
+
+            paycheck = Paycheck(
                 user_id=user.id,
-                year=year,
-                month=month,
-                week_index=week_index,
-            ).first()
-
-            if existing_entry:
-                flash(f"Week {week_index} for {month}/{year} already exists.", "error")
-                return redirect(url_for("income_month_view", year=year, month=month))
-
-            gross = hourly * hours
-            net = gross * (1 - tax_percent / 100.0)
-
-            entry = IncomeWeek(
-                user_id=user.id,
-                year=year,
-                month=month,
-                week_index=week_index,
-                hourly_pay=hourly,
-                hours=hours,
-                tax_percent=tax_percent,
-                gross=gross,
-                net=net,
+                pay_date=pay_date,
+                period_start=period_start,
+                period_end=period_end,
+                net_amount=round(net_amount, 2),
+                gross_amount=round(gross_amount, 2) if gross_amount is not None else None,
+                hours_worked=round(hours_worked, 2) if hours_worked is not None else None,
+                hourly_rate=round(hourly_rate, 2) if hourly_rate is not None else None,
+                tax_withheld=round(tax_withheld, 2) if tax_withheld is not None else None,
+                pay_type=pay_type,
+                notes=notes,
+                updated_at=datetime.utcnow(),
             )
 
-            db.session.add(entry)
+            db.session.add(paycheck)
             db.session.commit()
 
-            return redirect(url_for("income_month_view", year=year, month=month))
+            return redirect(
+                url_for(
+                    "income_month_view",
+                    year=pay_date.year,
+                    month=pay_date.month,
+                )
+            )
 
-        today = datetime.today()
+        today = date.today()
+
         return render_template(
             "income/form.html",
+            today=today,
             current_year=today.year,
             current_month=today.month,
         )
-
     # ===================================================================
-    # API: Delete custom dropdown options (soft-delete)
+    # API: Delete custom dropdown options
     # ===================================================================
 
     @app.post("/api/expenses/bucket/delete/<int:opt_id>")
+    @login_required
     def api_delete_expense_bucket(opt_id):
         user = get_current_user()
 
@@ -148,6 +304,7 @@ def create_app():
         return {"ok": True}
 
     @app.post("/api/expenses/merchant/delete/<int:opt_id>")
+    @login_required
     def api_delete_expense_merchant(opt_id):
         user = get_current_user()
 
@@ -167,6 +324,7 @@ def create_app():
         return {"ok": True}
 
     @app.post("/api/savings/bucket/delete/<int:opt_id>")
+    @login_required
     def api_delete_savings_bucket(opt_id):
         user = get_current_user()
 
@@ -186,6 +344,7 @@ def create_app():
         return {"ok": True}
 
     @app.post("/api/savings/name/delete/<int:opt_id>")
+    @login_required
     def api_delete_savings_name(opt_id):
         user = get_current_user()
 
@@ -204,38 +363,55 @@ def create_app():
 
         return {"ok": True}
 
-    # ==================================================================
+# ==================================================================
     # ROUTE: Monthly Income Summary
     # ==================================================================
     @app.route("/income/<int:year>/<int:month>")
+    @login_required
     def income_month_view(year, month):
         user = get_current_user()
 
-        entries = (
-            IncomeWeek.query
-            .filter_by(user_id=user.id, year=year, month=month)
-            .order_by(IncomeWeek.week_index)
+        # Start/end date range for the selected month.
+        # We count income by pay_date because that is when money is received.
+        month_start = date(year, month, 1)
+
+        if month == 12:
+            next_month_start = date(year + 1, 1, 1)
+        else:
+            next_month_start = date(year, month + 1, 1)
+
+        paychecks = (
+            Paycheck.query
+            .filter(
+                Paycheck.user_id == user.id,
+                Paycheck.pay_date >= month_start,
+                Paycheck.pay_date < next_month_start,
+            )
+            .order_by(Paycheck.pay_date.asc(), Paycheck.id.asc())
             .all()
         )
 
-        total_gross = sum(e.gross for e in entries)
-        total_net = sum(e.net for e in entries)
-        total_tax = total_gross - total_net
+        total_gross = sum(p.gross_amount or 0 for p in paychecks)
+        total_net = sum(p.net_amount for p in paychecks)
+        total_tax = sum(p.tax_withheld or 0 for p in paychecks)
+        total_hours = sum(p.hours_worked or 0 for p in paychecks)
 
         return render_template(
             "income/month_view.html",
             year=year,
             month=month,
-            entries=entries,
+            paychecks=paychecks,
             total_gross=total_gross,
             total_net=total_net,
             total_tax=total_tax,
+            total_hours=total_hours,
         )
 
     # ==================================================================
     # ROUTE: EXPENSES - Select Month
     # ==================================================================
     @app.route("/expenses/select")
+    @login_required
     def expenses_select_month():
         today = datetime.today()
         return render_template(
@@ -248,6 +424,7 @@ def create_app():
     # ROUTE: EXPENSES - Redirect after selecting Month/Year
     # ==================================================================
     @app.route("/expenses/view")
+    @login_required
     def expenses_view_redirect():
         year = request.args.get("year")
         month = request.args.get("month")
@@ -262,16 +439,29 @@ def create_app():
     # ROUTE: EXPENSES - Month View
     # ==================================================================
     @app.route("/expenses/<int:year>/<int:month>", methods=["GET", "POST"])
+    @login_required
     def expenses_month_view(year, month):
         user = get_current_user()
 
-        income_entries = (
-            IncomeWeek.query
-            .filter_by(user_id=user.id, year=year, month=month)
+        month_start = date(year, month, 1)
+
+        if month == 12:
+            next_month_start = date(year + 1, 1, 1)
+        else:
+            next_month_start = date(year, month + 1, 1)
+
+        paychecks = (
+            Paycheck.query
+            .filter(
+                Paycheck.user_id == user.id,
+                Paycheck.pay_date >= month_start,
+                Paycheck.pay_date < next_month_start,
+            )
             .all()
         )
-        total_gross = sum(e.gross for e in income_entries)
-        total_net = sum(e.net for e in income_entries)
+
+        total_gross = sum(p.gross_amount or 0 for p in paychecks)
+        total_net = sum(p.net_amount for p in paychecks)
 
         expenses = (
             Expense.query
@@ -545,6 +735,7 @@ def create_app():
     # ROUTE: SAVINGS - Select Month
     # ==================================================================
     @app.route("/savings/select")
+    @login_required
     def savings_select_month():
         today = datetime.today()
         return render_template(
@@ -557,6 +748,7 @@ def create_app():
     # ROUTE: SAVINGS - Redirect after selecting Month/Year
     # ==================================================================
     @app.route("/savings/view")
+    @login_required
     def savings_view_redirect():
         year = request.args.get("year")
         month = request.args.get("month")
@@ -571,15 +763,28 @@ def create_app():
     # ROUTE: SAVINGS - Month View
     # ==================================================================
     @app.route("/savings/<int:year>/<int:month>", methods=["GET", "POST"])
+    @login_required
     def savings_month_view(year, month):
         user = get_current_user()
 
-        income_entries = (
-            IncomeWeek.query
-            .filter_by(user_id=user.id, year=year, month=month)
+        month_start = date(year, month, 1)
+
+        if month == 12:
+            next_month_start = date(year + 1, 1, 1)
+        else:
+            next_month_start = date(year, month + 1, 1)
+
+        paychecks = (
+            Paycheck.query
+            .filter(
+                Paycheck.user_id == user.id,
+                Paycheck.pay_date >= month_start,
+                Paycheck.pay_date < next_month_start,
+            )
             .all()
         )
-        total_net = sum(e.net for e in income_entries)
+
+        total_net = sum(p.net_amount for p in paychecks)
 
         expenses = (
             Expense.query
@@ -867,28 +1072,37 @@ def create_app():
     # ROUTE: Settings
     # ==================================================================
     @app.route("/settings")
+    @login_required
     def settings():
         return render_template("settings.html")
 
     # ==================================================================
     # ROUTE: Delete a single week's entry
     # ==================================================================
-    @app.route("/income/delete/<int:week_id>", methods=["POST"])
-    def delete_week(week_id):
-        entry = IncomeWeek.query.get_or_404(week_id)
-        year = entry.year
-        month = entry.month
+    @app.route("/income/delete/<int:paycheck_id>", methods=["POST"])
+    @login_required
+    def delete_paycheck(paycheck_id):
+        user = get_current_user()
 
-        db.session.delete(entry)
+        paycheck = Paycheck.query.filter_by(
+            id=paycheck_id,
+            user_id=user.id,
+        ).first_or_404()
+
+        year = paycheck.pay_date.year
+        month = paycheck.pay_date.month
+
+        db.session.delete(paycheck)
         db.session.commit()
 
-        flash(f"Week {entry.week_index} deleted successfully.", "success")
+        flash("Paycheck deleted successfully.", "success")
         return redirect(url_for("income_month_view", year=year, month=month))
 
     # ==================================================================
     # ROUTE: Reset ALL income data
     # ==================================================================
     @app.route("/income/reset", methods=["POST"])
+    @login_required
     def reset_income():
         user = get_current_user()
 
@@ -902,6 +1116,7 @@ def create_app():
     # ROUTE: Select a Month/Year (Income)
     # ==================================================================
     @app.route("/income/select")
+    @login_required
     def income_select_month():
         today = datetime.today()
         return render_template(
@@ -914,6 +1129,7 @@ def create_app():
     # ROUTE: Redirect after selecting Month/Year (Income)
     # ==================================================================
     @app.route("/income/view")
+    @login_required
     def income_view_redirect():
         year = request.args.get("year")
         month = request.args.get("month")
@@ -927,9 +1143,6 @@ def create_app():
     return app
 
 
-# ======================================================================
-# Run the app directly
-# ======================================================================
 app = create_app()
 
 if __name__ == "__main__":

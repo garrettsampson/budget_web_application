@@ -66,6 +66,18 @@ class User(db.Model):
     email = db.Column(db.String(255), unique=True, nullable=False)
 
     # --------------------------------------------------------------
+    # password_hash = SECURE STORED PASSWORD
+    # --------------------------------------------------------------
+    # We never store the user's real password in the database.
+    # Instead, we store a hashed version created by Werkzeug.
+    #
+    # Login process later:
+    #   1. User types password
+    #   2. We hash/check it using check_password_hash()
+    #   3. If it matches, we log them in
+    password_hash = db.Column(db.String(255), nullable=True)
+
+    # --------------------------------------------------------------
     # created_at = DATETIME COLUMN (automatic timestamp)
     # --------------------------------------------------------------
     # db.DateTime         → stores both date + time
@@ -197,6 +209,50 @@ class IncomeWeek(db.Model):
     #       - Prevents unnecessary database queries.
     user = db.relationship('User', backref=db.backref('income_weeks', lazy=True))
 
+
+# ===================================================================
+# PAYCHECK MODEL
+# ===================================================================
+class Paycheck(db.Model):
+    """
+    Represents ONE real-life income payment.
+
+    This replaces the old "week_index" income style for real usage.
+
+    Real-life paycheck logic:
+      - pay_date = the day money hits the bank account
+      - period_start = first work date covered by the paycheck
+      - period_end = last work date covered by the paycheck
+      - net_amount = money actually received
+      - gross_amount/hours/hourly_rate/tax_withheld are optional details
+
+    Monthly income totals should use pay_date, because budgeting usually
+    cares about when money actually entered the account.
+    """
+
+    id = db.Column(db.Integer, primary_key=True)
+
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+
+    pay_date = db.Column(db.Date, nullable=False)
+
+    period_start = db.Column(db.Date, nullable=True)
+    period_end = db.Column(db.Date, nullable=True)
+
+    net_amount = db.Column(db.Float, nullable=False)
+    gross_amount = db.Column(db.Float, nullable=True)
+
+    hours_worked = db.Column(db.Float, nullable=True)
+    hourly_rate = db.Column(db.Float, nullable=True)
+    tax_withheld = db.Column(db.Float, nullable=True)
+
+    pay_type = db.Column(db.String(50), nullable=False, default="Paycheck")
+    notes = db.Column(db.String(255), nullable=True)
+
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+    updated_at = db.Column(db.DateTime, nullable=True)
+
+    user = db.relationship("User", backref=db.backref("paychecks", lazy=True))
 
 # ===================================================================
 # EXPENSE MODEL

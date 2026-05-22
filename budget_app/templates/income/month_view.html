@@ -1,231 +1,200 @@
-{#
-======================================================================================
-month_view.html — MONTHLY INCOME SUMMARY
-======================================================================================
-
-This page shows the breakdown of ALL weekly income entries for the selected month.
-
-It is rendered by this route in app.py:
-
-    @app.route("/income/<int:year>/<int:month>")
-
-Variables passed into this template from app.py:
-    • year          — the numeric year (e.g., 2025)
-    • month         — the numeric month (e.g., 11)
-    • entries       — a list of IncomeWeek objects from the database
-    • total_gross   — sum of gross incomes for the month
-    • total_net     — sum of net incomes for the month
-    • total_tax     — gross - net for the month
-
-If no entries exist, we show a friendly message.
-
-======================================================================================
-#}
-
 {% extends "base.html" %}
-
-
 {% block content %}
 
-<!-- PAGE HEADER -->
-<h2 class="text-2xl font-bold mb-4" style="color: var(--color-text)">
-  Income Summary for {{ month }}/{{ year }}
+<h2 class="text-2xl font-bold mb-4" style="color: var(--color-text);">
+  Income for {{ month }}/{{ year }}
 </h2>
 
+<div class="shadow rounded-lg p-6 mb-6"
+     style="background-color: var(--color-card-bg); border: 1px solid var(--color-border);">
 
-{# ======================================================================================
-   CONDITIONAL: IF THERE ARE INCOME ENTRIES FOR THIS MONTH
-   ======================================================================================
-   entries is a Python list. If it is non-empty, we render a table.
+  <h3 class="text-xl font-semibold mb-2" style="color: var(--color-text);">
+    Monthly Income Summary
+  </h3>
 
-   {% if entries %}  → True if list has at least one element
-   {% else %}        → Runs when no weeks have been entered
-#}
-{% if entries %}
-
-
-
-  {# ======================================================================================
-     WEEKLY INCOME TABLE
-     ======================================================================================
-     Tailwind styling:
-       • min-w-full → ensures table stretches full width
-       • bg-white + shadow + rounded → clean card appearance
-       • th/td classes set spacing and text style
-
-     The table contains:
-       Week | Hourly | Hours | Gross | Net | Tax Paid
-  #}
-  <table class="min-w-full bg-white shadow rounded-lg overflow-hidden"
-  style="background-color: var(--color-card-bg);
-  border: 1px solid var(--color-border);">
-    <thead class="bg-gray-100"
-    style="background-color: var(--color-card-bg);
-    border: 1px solid var(--color-border);">
-      <tr>
-        <th class="px-4 py-2 text-left text-sm font-semibold" style="color: var(--color-text);">Week</th>
-        <th class="px-4 py-2 text-left text-sm font-semibold" style="color: var(--color-text);">Hourly</th>
-        <th class="px-4 py-2 text-left text-sm font-semibold" style="color: var(--color-text);">Hours</th>
-        <th class="px-4 py-2 text-left text-sm font-semibold" style="color: var(--color-text);">Gross ($)</th>
-        <th class="px-4 py-2 text-left text-sm font-semibold" style="color: var(--color-text);">Net ($)</th>
-        <th class="px-4 py-2 text-left text-sm font-semibold" style="color: var(--color-text);">Tax Paid ($)</th>
-        <th class="px-4 py-2 text-left text-sm font-semibold" style="color: var(--color-text);">Actions</th>
-      </tr>
-    </thead>
-
-    <tbody>
-
-      {# ==================================================================================
-         LOOP OVER EACH IncomeWeek ENTRY
-         ==================================================================================
-         'e' is a single IncomeWeek object.
-
-         We format monetary values to two decimals using:
-             "{{ '%.2f'|format(value) }}"
-
-         Available fields from the IncomeWeek model:
-             e.week_index
-             e.hourly_pay
-             e.hours
-             e.gross
-             e.net
-      #}
-      {% for e in entries %}
-      <tr class="border-t">
-        <td class="px-4 py-2 text-sm" style="color: var(--color-text-secondary);">{{ e.week_index }}</td>
-        <td class="px-4 py-2 text-sm" style="color: var(--color-text-secondary);">{{ "%.2f"|format(e.hourly_pay) }}</td>
-        <td class="px-4 py-2 text-sm" style="color: var(--color-text-secondary);">{{ "%.2f"|format(e.hours) }}</td>
-        <td class="px-4 py-2 text-sm" style="color: var(--color-text-secondary);">{{ "%.2f"|format(e.gross) }}</td>
-        <td class="px-4 py-2 text-sm" style="color: var(--color-text-secondary);">{{ "%.2f"|format(e.net) }}</td>
-
-        <!-- Tax Paid = gross - net -->
-        <td class="px-4 py-2 text-sm" style="color: var(--color-text-secondary);">{{ "%.2f"|format(e.gross - e.net) }}</td>
-        <td class="px-4 py-2 text-sm">
-
-    <!-- 
-        DELETE BUTTON
-        ----------------------------
-        - Uses a POST form for safety
-        - Submits to /income/delete/<week_id>
-        - Shows a small red delete button
-        - Triggers a flash toast on success
-    -->
-    <!-- DELETE BUTTON (NO POP-UP CONFIRMATION) -->
-    <form action="{{ url_for('delete_week', week_id=e.id) }}" method="POST">
-        <button 
-            class="text-red-600 hover:text-red-800 font-semibold text-sm hover:underline"
-            title="Delete this week">
-            Delete
-        </button>
-    </form>
-
-
-</td>
-
-      </tr>
-      {% endfor %}
-
-    </tbody>
-  </table>
-
-
-
-  {# ======================================================================================
-     MONTHLY TOTALS SECTION
-     ======================================================================================
-     Values are calculated in Python (app.py), NOT in the HTML template.
-     This keeps templates clean and prevents mixing business logic with display logic.
-
-     total_gross, total_net, total_tax are already precomputed numbers.
-  #}
-  <div class="mt-6 bg-white shadow rounded-lg p-4"
-  style="background-color: var(--color-card-bg);
-  border: 1px solid var(--color-border);">
-    <h3 class="text-xl font-semibold mb-2" style="color: var(--color-text);">Monthly Totals</h3>
-
-    <ul class="space-y-1 text-sm">
-        <li>
-            <strong style="color: var(--color-text);">Total Gross:</strong>
-            <span style="color: var(--color-text-secondary);">
-                {{ "%.2f"|format(total_gross) }}
-            </span>
-        </li>
-
-        <li>
-            <strong style="color: var(--color-text);">Total Net:</strong>
-            <span style="color: var(--color-text-secondary);">
-                {{ "%.2f"|format(total_net) }}
-            </span>
-        </li>
-
-        <li>
-            <strong style="color: var(--color-text);">Total Tax:</strong>
-            <span style="color: var(--color-text-secondary);">
-                {{ "%.2f"|format(total_tax) }}
-            </span>
-        </li>
-    </ul>
-  </div>
-
-
-
-{% else %}
-
-  {# ======================================================================================
-     NO ENTRIES YET
-     ======================================================================================
-     This runs when the month has no IncomeWeek entries.
-
-     It keeps the UI helpful and avoids blank pages.
-  #}
-  <p style="color: var(--color-text-secondary);">
-    No income entries recorded for this month yet.
+  <p class="text-sm mb-4" style="color: var(--color-text-secondary);">
+    Income is counted by pay date, meaning the month the money actually hit your account.
   </p>
 
-{% endif %}
+  <div class="grid grid-cols-1 sm:grid-cols-4 gap-4">
 
+    <div class="rounded-lg p-4"
+         style="border: 1px solid var(--color-border);">
+      <div class="text-sm" style="color: var(--color-text-secondary);">Total Net</div>
+      <div class="text-2xl font-bold" style="color: var(--color-text);">
+        ${{ "%.2f"|format(total_net) }}
+      </div>
+    </div>
 
+    <div class="rounded-lg p-4"
+         style="border: 1px solid var(--color-border);">
+      <div class="text-sm" style="color: var(--color-text-secondary);">Total Gross</div>
+      <div class="text-2xl font-bold" style="color: var(--color-text);">
+        ${{ "%.2f"|format(total_gross) }}
+      </div>
+    </div>
 
-{# ========================================================================================
-   BUTTON: ADD ANOTHER WEEK
-   ========================================================================================
-   A simple call to action that redirects back to the income form.
+    <div class="rounded-lg p-4"
+         style="border: 1px solid var(--color-border);">
+      <div class="text-sm" style="color: var(--color-text-secondary);">Tax / Withheld</div>
+      <div class="text-2xl font-bold" style="color: var(--color-text);">
+        ${{ "%.2f"|format(total_tax) }}
+      </div>
+    </div>
 
-   Tailwind:
-     bg-blue-600      → primary button color
-     hover:bg-blue-700 → darker on hover
-     px-4 py-2        → padding
-     rounded          → rounded corners
-#}
-<a
-  href="{{ url_for('income_form') }}"
-  class="btn-primary inline-block mt-6"
->
-  Add another week
-</a>
-<!-- View a Different Month -->
-<!-- Secondary Button: Select Month to View -->
-<a
-  href="{{ url_for('income_select_month') }}"
-  class="btn-secondary inline-block mt-3 ml-3"
->
-  Select Month to View
-</a>
+    <div class="rounded-lg p-4"
+         style="border: 1px solid var(--color-border);">
+      <div class="text-sm" style="color: var(--color-text-secondary);">Hours</div>
+      <div class="text-2xl font-bold" style="color: var(--color-text);">
+        {{ "%.2f"|format(total_hours) }}
+      </div>
+    </div>
 
+  </div>
+</div>
 
-<!-- ================================================================
-     RESET ALL INCOME DATA BUTTON
-     - Large red warning button
-     - Sends a POST request to /income/reset
-     - Shows a pastel toast on success
-================================================================ -->
-<form action="{{ url_for('reset_income') }}" method="POST" class="mt-4">
-    <button 
-        class="bg-red-600 hover:bg-red-700 text-white font-semibold px-4 py-2 rounded"
-        onclick="return confirm('Are you sure you want to delete ALL income data? This cannot be undone.');">
-        Reset All Income Data
-    </button>
-</form>
+<div class="shadow rounded-lg p-6"
+     style="background-color: var(--color-card-bg); border: 1px solid var(--color-border);">
 
+  <div class="flex items-center justify-between mb-4">
+    <h3 class="text-xl font-semibold" style="color: var(--color-text);">
+      Paychecks
+    </h3>
+
+    <a href="{{ url_for('income_form') }}" class="btn-secondary inline-block">
+      Add Income
+    </a>
+  </div>
+
+  {% if paychecks %}
+    <div class="overflow-x-auto">
+      <table class="min-w-full rounded-lg overflow-hidden"
+             style="border: 1px solid var(--color-border);">
+
+        <thead>
+          <tr style="border-bottom: 1px solid var(--color-border);">
+            <th class="px-4 py-3 text-left text-sm font-semibold" style="color: var(--color-text);">
+              Pay Date
+            </th>
+            <th class="px-4 py-3 text-left text-sm font-semibold" style="color: var(--color-text);">
+              Period
+            </th>
+            <th class="px-4 py-3 text-left text-sm font-semibold" style="color: var(--color-text);">
+              Type
+            </th>
+            <th class="px-4 py-3 text-left text-sm font-semibold" style="color: var(--color-text);">
+              Hours
+            </th>
+            <th class="px-4 py-3 text-left text-sm font-semibold" style="color: var(--color-text);">
+              Gross
+            </th>
+            <th class="px-4 py-3 text-left text-sm font-semibold" style="color: var(--color-text);">
+              Tax
+            </th>
+            <th class="px-4 py-3 text-left text-sm font-semibold" style="color: var(--color-text);">
+              Net
+            </th>
+            <th class="px-4 py-3 text-left text-sm font-semibold" style="color: var(--color-text);">
+              Row
+            </th>
+          </tr>
+        </thead>
+
+        <tbody>
+          {% for p in paychecks %}
+          <tr style="border-bottom: 1px solid var(--color-border);">
+            <td class="px-4 py-2" style="color: var(--color-text-secondary);">
+              {{ p.pay_date }}
+            </td>
+
+            <td class="px-4 py-2" style="color: var(--color-text-secondary);">
+              {% if p.period_start and p.period_end %}
+                {{ p.period_start }} to {{ p.period_end }}
+              {% elif p.period_start %}
+                Starts {{ p.period_start }}
+              {% elif p.period_end %}
+                Ends {{ p.period_end }}
+              {% else %}
+                —
+              {% endif %}
+            </td>
+
+            <td class="px-4 py-2" style="color: var(--color-text-secondary);">
+              {{ p.pay_type }}
+            </td>
+
+            <td class="px-4 py-2" style="color: var(--color-text-secondary);">
+              {% if p.hours_worked is not none %}
+                {{ "%.2f"|format(p.hours_worked) }}
+              {% else %}
+                —
+              {% endif %}
+            </td>
+
+            <td class="px-4 py-2" style="color: var(--color-text-secondary);">
+              {% if p.gross_amount is not none %}
+                ${{ "%.2f"|format(p.gross_amount) }}
+              {% else %}
+                —
+              {% endif %}
+            </td>
+
+            <td class="px-4 py-2" style="color: var(--color-text-secondary);">
+              {% if p.tax_withheld is not none %}
+                ${{ "%.2f"|format(p.tax_withheld) }}
+              {% else %}
+                —
+              {% endif %}
+            </td>
+
+            <td class="px-4 py-2 font-semibold" style="color: var(--color-text);">
+              ${{ "%.2f"|format(p.net_amount) }}
+            </td>
+
+            <td class="px-4 py-2">
+              <form method="POST"
+                    action="{{ url_for('delete_paycheck', paycheck_id=p.id) }}"
+                    onsubmit="return confirm('Delete this paycheck?');">
+                <button type="submit"
+                        class="text-sm font-semibold hover:underline"
+                        style="color: var(--color-error);">
+                  Delete
+                </button>
+              </form>
+            </td>
+          </tr>
+
+          {% if p.notes %}
+          <tr style="border-bottom: 1px solid var(--color-border);">
+            <td colspan="8" class="px-4 py-2 text-sm" style="color: var(--color-text-secondary);">
+              Note: {{ p.notes }}
+            </td>
+          </tr>
+          {% endif %}
+
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <p style="color: var(--color-text-secondary);">
+      No income has been entered for this month yet.
+    </p>
+
+    <a href="{{ url_for('income_form') }}" class="btn-primary inline-block mt-4">
+      Add First Paycheck
+    </a>
+  {% endif %}
+</div>
+
+<div class="pt-6 flex flex-wrap gap-3">
+  <a href="{{ url_for('income_select_month') }}" class="btn-secondary inline-block">
+    Select Different Month
+  </a>
+
+  <a href="{{ url_for('expenses_month_view', year=year, month=month) }}" class="btn-primary inline-block">
+    Go to Expenses
+  </a>
+</div>
 
 {% endblock %}

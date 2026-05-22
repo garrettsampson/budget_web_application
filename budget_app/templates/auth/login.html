@@ -1,0 +1,58 @@
+{% extends "base.html" %}
+{% block content %}
+
+<div class="max-w-md mx-auto shadow rounded-lg p-6"
+     style="background-color: var(--color-card-bg); border: 1px solid var(--color-border);">
+
+  <h2 class="text-2xl font-bold mb-4" style="color: var(--color-text);">
+    Log In
+  </h2>
+
+  <form method="POST" class="space-y-4">
+
+    <div>
+      <label class="block text-sm font-medium mb-1" style="color: var(--color-text);">
+        Email
+      </label>
+      <input
+        type="email"
+        name="email"
+        required
+        class="w-full rounded px-3 py-2"
+        style="background-color: var(--color-input-bg);
+               border: 1px solid var(--color-border);
+               color: var(--color-text);"
+      >
+    </div>
+
+    <div>
+      <label class="block text-sm font-medium mb-1" style="color: var(--color-text);">
+        Password
+      </label>
+      <input
+        type="password"
+        name="password"
+        required
+        class="w-full rounded px-3 py-2"
+        style="background-color: var(--color-input-bg);
+               border: 1px solid var(--color-border);
+               color: var(--color-text);"
+      >
+    </div>
+
+    <button type="submit" class="btn-primary w-full">
+      Log In
+    </button>
+
+  </form>
+
+  <p class="text-sm mt-4" style="color: var(--color-text-secondary);">
+    Need an account?
+    <a href="{{ url_for('register') }}" style="color: var(--color-primary);">
+      Register here
+    </a>.
+  </p>
+
+</div>
+
+{% endblock %}
