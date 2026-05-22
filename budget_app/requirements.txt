@@ -3,3 +3,4 @@ Flask-SQLAlchemy
 Flask-Migrate
 Werkzeug
 gunicorn
+psycopg2-binary

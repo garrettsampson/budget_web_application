@@ -1,49 +1,288 @@
+SMARTSPEND MASTER TODO / ROADMAP
+
+====================================================================
+CURRENT TOP PRIORITY
+====================================================================
+
+1. Migrate database from SQLite → PostgreSQL on Render
+   - Add psycopg2-binary
+   - Create Render PostgreSQL instance
+   - Configure DATABASE_URL env variable
+   - Ensure SQLAlchemy works with postgres:// vs postgresql://
+   - Run migrations against PostgreSQL
+   - Verify all existing account/authentication systems work
+   - Verify persistence survives redeploys
+   - Verify accounts/data survive server changes
+
+====================================================================
+AUTH / ACCOUNT SYSTEM
+====================================================================
+
+COMPLETED:
+- Register system
+- Login system
+- Logout system
+- Account settings
+- Change display name
+- Change email
+- Change password
+- Delete account
+- Session handling
+- Hosted deployment
+- Custom domain setup
+
+LATER:
+- Password reset via email
+- Email verification
+- Team permissions / role management
+
+====================================================================
+EXPENSES SYSTEM
+====================================================================
+
 Finish Expenses Part 3 (Persistence & History)
-- We completed 3B backend logic (soft delete + row identity), but DID NOT do 3C yet.
-- Still need:
-  - Ability to view deleted (inactive) expense rows
-  - Toggle like "Show deleted / history"
-  - Visual distinction for deleted rows
-  - Optional restore button for deleted expenses
-- When resuming, start by reviewing current app.py + models.py to confirm 3B is stable before touching templates.
+
+COMPLETED:
+- 3B backend logic
+- soft delete system
+- row identity handling
+
+Still needed:
+- Ability to view deleted/inactive expense rows
+- "Show deleted/history" toggle
+- Visual distinction for deleted rows
+- Optional restore button
+- Confirm 3B stability before modifying templates
+
+IMPORTANT:
+Past months must render identically and remain editable.
+
+------------------------------------------------------------
+Previously Fixed:
+------------------------------------------------------------
+
+Bug: Newly added expense rows disappear after Save
 
 Fixed:
-      Bug: Newly added expense rows disappear after Save
-      - When using "Add Expense", the new row appears visually offcentered
-      - After entering data and clicking Save, the row is not persisted
-      - After row disappears the total money spent still stays affected as if the data is saved but not visible
-      - Likely cause:
-        - JS-added rows missing one or more required form fields:
-          - name="expense_id[]"
-          - name="category[]"
-          - name="description[]"
-          - name="cost[]"
-        - OR mismatch between table columns and backend zip() logic
-      - Needs:
-        - Review addExpenseRow() JS
-        - Ensure JS-generated rows exactly match saved-row structure
-        - Verify all parallel lists submit same length
-      - This is a 3B follow-up bug, NOT 3C
+- JS-generated rows now persist correctly
+- Rows now include:
+  - expense_id[]
+  - category[]
+  - description[]
+  - cost[]
 
-The user needs to be able to enter in their paychecks as normal instead of having to enter tax, hours, etc. 
-The user also needs to be able to select when they get paid, like every 2 weeks on a thursday that way you are entering in
-data for those days instead of week by week. My thought is the user could select in this order:
- - select what day you got paid 
- - select what days the pay was for (so you click like Monday the 15th then click Saturday the 20th and it would select all 
- of the days in between)
- - enter in paycheck (with or with hours and taxes) (have a checkbox that allows them to do it with math as in hours * pay
- or have it where they can just enter in the hours for the program to store that information for later)
+Need to continue monitoring:
+- alignment consistency
+- addExpenseRow() structure consistency
+- parallel list length matching
 
-Later down the line there should be more visual representation of progress, pay being earned or money lost, etc with the graphs.
+====================================================================
+ARCHIVE / UNARCHIVE TIMELINE SYSTEM
+====================================================================
 
-For the summary at the end we should add in total amount of hours worked, and a ton of information just for fun. Myabe add in a 
-feature that is like "Good job, you worked 10 hours less this year and still made $1000 more!, something that can analyze and 
-give simple feedback. 
+Implement effective-dated archive/unarchive system
+for:
+- expense bucket options
+- expense merchant/name options
+- savings bucket options
+- savings name options
 
-“Implement effective-dated archive/unarchive timeline for expense/savings bucket+name options.”
-“Options have a created effective month (don’t appear before created).”
-“Archive/unarchive writes events effective for the current month page.”
-“Prevent no-op actions; show No change needed.”
-“Archived hidden by default; Show archived toggle at top.”
-“Past months must render identically and remain editable; no archive labels.”
-“Archive/Unarchive requires confirmation modal.”
+RULES:
+- Options have created effective month
+- Options do NOT appear before creation date
+- Archive/unarchive writes timeline events
+- Actions are effective starting from current month
+- Past months remain visually identical
+- Past months remain editable
+- No archive labels shown on old months
+
+UI REQUIREMENTS:
+- Archived hidden by default
+- "Show archived" toggle
+- Confirmation modal before archive/unarchive
+- Prevent no-op actions
+- Show "No change needed" if already archived/unarchived
+
+Timeline Example:
+1/26 Netflix created
+3/26 Netflix archived
+6/26 Netflix unarchived
+
+Behavior:
+- 1/26–2/26 visible
+- 3/26–5/26 hidden
+- 6/26 onward visible again
+
+Editing old months:
+- modifying old event changes timeline only until next event
+
+====================================================================
+INCOME / PAYCHECK SYSTEM
+====================================================================
+
+Need more realistic paycheck workflow.
+
+Current system works but should evolve toward:
+real-world payroll scheduling.
+
+User should be able to:
+- Enter paycheck normally
+- OR enter hours/tax details
+- Choose payroll schedule
+
+Desired workflow:
+1. Select pay date
+2. Select what days paycheck covered
+3. Enter paycheck amount
+4. Optional:
+   - hours worked
+   - hourly rate
+   - taxes withheld
+
+Add options for:
+- every 2 weeks
+- weekly
+- monthly
+- semi-monthly
+- custom recurring payroll
+
+Future idea:
+- paycheck templates
+- recurring paychecks
+
+====================================================================
+ANALYTICS / DASHBOARD
+====================================================================
+
+Build advanced analytics dashboard.
+
+Include:
+- spending by category
+- monthly cash flow
+- savings rate
+- yearly trends
+- recurring subscriptions
+- top spending categories
+- average leftover money
+- investment/savings analytics
+- hours worked summaries
+- income growth trends
+- expense growth trends
+
+FUN ANALYTICS IDEAS:
+- “You worked 10 fewer hours this year and still made $1000 more.”
+- “Dining spending decreased 12% this month.”
+- “You saved 18% more than last year.”
+
+Need:
+- graphs
+- charts
+- progress visuals
+- visual money flow
+- better yearly summaries
+
+====================================================================
+TEAM / SHARED BUDGET SYSTEM
+====================================================================
+
+Add ability to invite users to a shared team/household.
+
+Features:
+- invite another user
+- accept/decline invite
+- combined income view
+- split expenses
+- shared vs personal transactions
+- household budgeting
+- team ownership/permissions
+- future admin roles
+
+Potential future:
+- couples budgeting
+- roommate budgeting
+- family budgeting
+
+====================================================================
+MOBILE RESPONSIVENESS
+====================================================================
+
+Need major mobile improvements:
+- responsive tables
+- mobile-friendly layouts
+- collapsible sections
+- touch-friendly controls
+- better spacing
+- mobile dashboard cards
+
+====================================================================
+UI / UX / QUALITY OF LIFE
+====================================================================
+
+General cleanup and polish:
+- cleaner layouts
+- smoother workflows
+- better buttons
+- improved spacing
+- improved navigation
+- improved dropdown systems
+- better empty states
+- improved onboarding
+- cleaner modals
+- better loading feedback
+- animations/transitions
+- cleaner forms
+
+Potential:
+- dark mode improvements
+- theme creator improvements
+- save/import themes
+
+====================================================================
+RECURRING TRANSACTIONS
+====================================================================
+
+Add recurring:
+- expenses
+- subscriptions
+- paychecks
+- savings allocations
+
+Need:
+- monthly repeats
+- weekly repeats
+- yearly repeats
+- editable recurring templates
+
+====================================================================
+LANDING PAGE / BRANDING
+====================================================================
+
+Eventually:
+sampsontech.org
+becomes:
+- marketing site
+- screenshots
+- feature explanations
+- SmartSpend branding
+- pricing
+- login/register buttons
+
+App itself remains:
+smartspend.sampsontech.org
+
+====================================================================
+GENERAL NOTES
+====================================================================
+
+Current deployment:
+- Render
+- Custom subdomain:
+  smartspend.sampsontech.org
+
+Need to prioritize:
+1. PostgreSQL migration
+2. Analytics dashboard
+3. Mobile responsiveness
+4. Recurring systems
+5. Archive timeline system
+6. Team/shared budgeting system
