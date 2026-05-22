@@ -275,13 +275,103 @@ def create_app():
 
         return render_template(
             "income/form.html",
+            paycheck=None,
             today=today,
             current_year=today.year,
             current_month=today.month,
+            form_mode="add",
         )
     # ===================================================================
     # API: Delete custom dropdown options
     # ===================================================================
+
+    # ==================================================================
+    # ROUTE: Edit a paycheck entry
+    # ==================================================================
+    @app.route("/income/edit/<int:paycheck_id>", methods=["GET", "POST"])
+    @login_required
+    def edit_paycheck(paycheck_id):
+        """
+        Allows the logged-in user to edit one paycheck.
+
+        IMPORTANT:
+        We filter by both:
+          - paycheck id
+          - current user id
+
+        This prevents one user from editing another user's paycheck.
+        """
+        user = get_current_user()
+
+        paycheck = Paycheck.query.filter_by(
+            id=paycheck_id,
+            user_id=user.id,
+        ).first_or_404()
+
+        def parse_optional_float(value):
+            value = (value or "").strip()
+            if value == "":
+                return None
+            return float(value)
+
+        def parse_optional_date(value):
+            value = (value or "").strip()
+            if value == "":
+                return None
+            return date.fromisoformat(value)
+
+        if request.method == "POST":
+            pay_date = date.fromisoformat(request.form["pay_date"])
+
+            period_start = parse_optional_date(request.form.get("period_start"))
+            period_end = parse_optional_date(request.form.get("period_end"))
+
+            net_amount = float(request.form["net_amount"])
+
+            gross_amount = parse_optional_float(request.form.get("gross_amount"))
+            hours_worked = parse_optional_float(request.form.get("hours_worked"))
+            hourly_rate = parse_optional_float(request.form.get("hourly_rate"))
+            tax_withheld = parse_optional_float(request.form.get("tax_withheld"))
+
+            pay_type = (request.form.get("pay_type") or "Paycheck").strip()
+            notes = (request.form.get("notes") or "").strip() or None
+
+            if net_amount < 0:
+                flash("Net amount cannot be negative.", "error")
+                return redirect(url_for("edit_paycheck", paycheck_id=paycheck.id))
+
+            paycheck.pay_date = pay_date
+            paycheck.period_start = period_start
+            paycheck.period_end = period_end
+            paycheck.net_amount = round(net_amount, 2)
+            paycheck.gross_amount = round(gross_amount, 2) if gross_amount is not None else None
+            paycheck.hours_worked = round(hours_worked, 2) if hours_worked is not None else None
+            paycheck.hourly_rate = round(hourly_rate, 2) if hourly_rate is not None else None
+            paycheck.tax_withheld = round(tax_withheld, 2) if tax_withheld is not None else None
+            paycheck.pay_type = pay_type
+            paycheck.notes = notes
+            paycheck.updated_at = datetime.utcnow()
+
+            db.session.commit()
+
+            flash("Paycheck updated successfully.", "success")
+
+            return redirect(
+                url_for(
+                    "income_month_view",
+                    year=paycheck.pay_date.year,
+                    month=paycheck.pay_date.month,
+                )
+            )
+
+        return render_template(
+            "income/form.html",
+            paycheck=paycheck,
+            today=paycheck.pay_date,
+            current_year=paycheck.pay_date.year,
+            current_month=paycheck.pay_date.month,
+            form_mode="edit",
+        )
 
     @app.post("/api/expenses/bucket/delete/<int:opt_id>")
     @login_required

@@ -1,8 +1,14 @@
 {% extends "base.html" %}
 {% block content %}
 
+{% set is_edit = form_mode == "edit" and paycheck %}
+
 <h2 class="text-2xl font-bold mb-4" style="color: var(--color-text);">
-  Add Income / Paycheck
+  {% if is_edit %}
+    Edit Paycheck
+  {% else %}
+    Add Income / Paycheck
+  {% endif %}
 </h2>
 
 <div class="shadow rounded-lg p-6 max-w-2xl"
@@ -23,7 +29,7 @@
         type="date"
         name="pay_date"
         required
-        value="{{ today }}"
+        value="{% if is_edit %}{{ paycheck.pay_date }}{% else %}{{ today }}{% endif %}"
         class="w-full rounded px-3 py-2"
         style="background-color: var(--color-input-bg);
                border: 1px solid var(--color-border);
@@ -42,6 +48,7 @@
         <input
           type="date"
           name="period_start"
+          value="{% if is_edit and paycheck.period_start %}{{ paycheck.period_start }}{% endif %}"
           class="w-full rounded px-3 py-2"
           style="background-color: var(--color-input-bg);
                  border: 1px solid var(--color-border);
@@ -56,6 +63,7 @@
         <input
           type="date"
           name="period_end"
+          value="{% if is_edit and paycheck.period_end %}{{ paycheck.period_end }}{% endif %}"
           class="w-full rounded px-3 py-2"
           style="background-color: var(--color-input-bg);
                  border: 1px solid var(--color-border);
@@ -76,27 +84,35 @@
         min="0"
         required
         placeholder="Example: 1250.00"
+        value="{% if is_edit %}{{ '%.2f'|format(paycheck.net_amount) }}{% endif %}"
         class="w-full rounded px-3 py-2"
         style="background-color: var(--color-input-bg);
                border: 1px solid var(--color-border);
                color: var(--color-text);"
       >
-      <p class="text-xs mt-1" style="color: var(--color-text-secondary);">
-        This is the amount that actually hit your bank account.
-      </p>
     </div>
 
     <div class="rounded-lg p-4"
          style="border: 1px solid var(--color-border); background-color: var(--color-card-bg);">
 
       <div class="flex items-center gap-2 mb-3">
-        <input type="checkbox" id="show_math_fields">
+        <input
+          type="checkbox"
+          id="show_math_fields"
+          {% if is_edit and (paycheck.gross_amount is not none or paycheck.hours_worked is not none or paycheck.hourly_rate is not none or paycheck.tax_withheld is not none) %}
+            checked
+          {% endif %}
+        >
         <label for="show_math_fields" class="text-sm font-medium" style="color: var(--color-text);">
           Add optional hours / gross / tax details
         </label>
       </div>
 
-      <div id="optional_math_fields" class="space-y-4" style="display: none;">
+      <div
+        id="optional_math_fields"
+        class="space-y-4"
+        style="{% if is_edit and (paycheck.gross_amount is not none or paycheck.hours_worked is not none or paycheck.hourly_rate is not none or paycheck.tax_withheld is not none) %}display: block;{% else %}display: none;{% endif %}"
+      >
 
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
@@ -109,6 +125,7 @@
               id="hours_worked"
               step="0.01"
               min="0"
+              value="{% if is_edit and paycheck.hours_worked is not none %}{{ '%.2f'|format(paycheck.hours_worked) }}{% endif %}"
               class="w-full rounded px-3 py-2 calc-input"
               style="background-color: var(--color-input-bg);
                      border: 1px solid var(--color-border);
@@ -126,6 +143,7 @@
               id="hourly_rate"
               step="0.01"
               min="0"
+              value="{% if is_edit and paycheck.hourly_rate is not none %}{{ '%.2f'|format(paycheck.hourly_rate) }}{% endif %}"
               class="w-full rounded px-3 py-2 calc-input"
               style="background-color: var(--color-input-bg);
                      border: 1px solid var(--color-border);
@@ -145,6 +163,7 @@
               id="gross_amount"
               step="0.01"
               min="0"
+              value="{% if is_edit and paycheck.gross_amount is not none %}{{ '%.2f'|format(paycheck.gross_amount) }}{% endif %}"
               class="w-full rounded px-3 py-2"
               style="background-color: var(--color-input-bg);
                      border: 1px solid var(--color-border);
@@ -162,6 +181,7 @@
               id="tax_withheld"
               step="0.01"
               min="0"
+              value="{% if is_edit and paycheck.tax_withheld is not none %}{{ '%.2f'|format(paycheck.tax_withheld) }}{% endif %}"
               class="w-full rounded px-3 py-2 calc-input"
               style="background-color: var(--color-input-bg);
                      border: 1px solid var(--color-border);
@@ -188,12 +208,12 @@
                border: 1px solid var(--color-border);
                color: var(--color-text);"
       >
-        <option value="Paycheck">Paycheck</option>
-        <option value="Side Job">Side Job</option>
-        <option value="Cash">Cash</option>
-        <option value="Refund">Refund</option>
-        <option value="Gift">Gift</option>
-        <option value="Other">Other</option>
+        {% set current_type = paycheck.pay_type if is_edit else "Paycheck" %}
+        {% for option in ["Paycheck", "Side Job", "Cash", "Refund", "Gift", "Other"] %}
+          <option value="{{ option }}" {% if current_type == option %}selected{% endif %}>
+            {{ option }}
+          </option>
+        {% endfor %}
       </select>
     </div>
 
@@ -205,6 +225,7 @@
         type="text"
         name="notes"
         placeholder="Optional note"
+        value="{% if is_edit and paycheck.notes %}{{ paycheck.notes }}{% endif %}"
         class="w-full rounded px-3 py-2"
         style="background-color: var(--color-input-bg);
                border: 1px solid var(--color-border);
@@ -214,12 +235,23 @@
 
     <div class="pt-2 flex flex-wrap gap-3">
       <button type="submit" class="btn-primary">
-        Save Income
+        {% if is_edit %}
+          Save Changes
+        {% else %}
+          Save Income
+        {% endif %}
       </button>
 
-      <a href="{{ url_for('income_select_month') }}" class="btn-secondary inline-block">
-        View Monthly Income
-      </a>
+      {% if is_edit %}
+        <a href="{{ url_for('income_month_view', year=paycheck.pay_date.year, month=paycheck.pay_date.month) }}"
+           class="btn-secondary inline-block">
+          Cancel
+        </a>
+      {% else %}
+        <a href="{{ url_for('income_select_month') }}" class="btn-secondary inline-block">
+          View Monthly Income
+        </a>
+      {% endif %}
     </div>
 
   </form>
