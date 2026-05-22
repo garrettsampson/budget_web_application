@@ -1,90 +1,100 @@
-{# 
-  dashboard.html
-
-  This template represents the "Home" or "Dashboard" page of your app.
-  It appears when the user visits the root URL:
-
-        http://127.0.0.1:5000/
-
-  This file uses Jinja templating syntax (the templating system Flask uses).
-#}
-
-{# 
-  EXTENDING base.html
-  -------------------
-  This tells Flask/Jinja:
-      "Use base.html as the master layout for this page."
-
-  base.html includes the:
-  - <html> structure
-  - <head> section
-  - navigation bar (your main menu)
-  - global Tailwind styling
-  - wrapper for content
-
-  Any page that extends base.html only needs to define the content 
-  that goes inside the `{% block content %}` section.
-#}
 {% extends "base.html" %}
-
-{# 
-  The "content" block:
-  --------------------
-  This block REPLACES the placeholder block inside base.html.
-
-  In base.html, you likely have something like:
-
-      {% block content %}{% endblock %}
-
-  Everything between {% block content %} and {% endblock %} here will appear
-  *inside* that area.
-
-  This keeps your layout consistent across pages (single-page layout).
-#}
 {% block content %}
 
-<!-- 
-  MAIN PAGE HEADING 
-  -----------------
-  Tailwind classes used:
-    text-3xl -> Makes the text very large
-    font-bold -> Makes it bold
-    mb-4 -> Adds margin bottom of size 4 for spacing
--->
-<h1 class="text-3xl font-bold mb-4" style="color: var(--color-text);">Welcome to Your Budget App</h1>
+<h2 class="text-2xl font-bold mb-4" style="color: var(--color-text);">
+  Dashboard
+</h2>
 
-<!-- 
-  BASIC PAGE DESCRIPTION 
-  ----------------------
-  This lets the user know the app is running and gives guidance.
-  text-gray-700 -> Slightly gray text (less harsh than pure black)
--->
-<p class="mb-4" style="color: var(--color-text-secondary);">
-  Your app is running correctly! Use the navigation bar to go to the Income section.
+<p class="mb-6" style="color: var(--color-text-secondary);">
+  Current month summary for {{ month }}/{{ year }}.
 </p>
 
-<!-- 
-  LINK TO INCOME CALCULATOR 
-  --------------------------
-  This <a> tag functions like a button.
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
 
-  Tailwind classes:
-    inline-block     -> Makes the element block-like but inline with text flow
-    mt-4             -> Top margin for spacing
-    bg-blue-600      -> Blue background (primary color)
-    hover:bg-blue-700 -> Darker blue on hover (interactive feedback)
-    text-white       -> White text color
-    px-4, py-2       -> Padding (horizontal/vertical)
-    rounded          -> Rounded corners
+  <div class="shadow rounded-lg p-5"
+       style="background-color: var(--color-card-bg); border: 1px solid var(--color-border);">
+    <div class="text-sm" style="color: var(--color-text-secondary);">
+      Net Income
+    </div>
+    <div class="text-3xl font-bold" style="color: var(--color-text);">
+      ${{ "%.2f"|format(total_income) }}
+    </div>
+  </div>
 
-  Clicking this will send the user to the route: /income
--->
-  <!-- BUTTON: GO TO INCOME CALCULATOR -->
-<a 
-  href="{{ url_for('income_form') }}" 
-  class="btn-primary inline-block mt-4"
->
-  Go to Income Calculator
-</a>
+  <div class="shadow rounded-lg p-5"
+       style="background-color: var(--color-card-bg); border: 1px solid var(--color-border);">
+    <div class="text-sm" style="color: var(--color-text-secondary);">
+      Expenses
+    </div>
+    <div class="text-3xl font-bold" style="color: var(--color-text);">
+      ${{ "%.2f"|format(total_expenses) }}
+    </div>
+  </div>
+
+  <div class="shadow rounded-lg p-5"
+       style="background-color: var(--color-card-bg); border: 1px solid var(--color-border);">
+    <div class="text-sm" style="color: var(--color-text-secondary);">
+      Left After Expenses
+    </div>
+    <div class="text-3xl font-bold" style="color: var(--color-text);">
+      ${{ "%.2f"|format(money_left_after_expenses) }}
+    </div>
+  </div>
+
+  <div class="shadow rounded-lg p-5"
+       style="background-color: var(--color-card-bg); border: 1px solid var(--color-border);">
+    <div class="text-sm" style="color: var(--color-text-secondary);">
+      Savings Allocated
+    </div>
+    <div class="text-3xl font-bold" style="color: var(--color-text);">
+      ${{ "%.2f"|format(total_savings_amount) }}
+    </div>
+    <div class="text-sm mt-1" style="color: var(--color-text-secondary);">
+      {{ "%.2f"|format(total_savings_percent) }}%
+    </div>
+  </div>
+
+  <div class="shadow rounded-lg p-5"
+       style="background-color: var(--color-card-bg); border: 1px solid var(--color-border);">
+    <div class="text-sm" style="color: var(--color-text-secondary);">
+      Final Leftover
+    </div>
+    <div class="text-3xl font-bold" style="color: var(--color-text);">
+      ${{ "%.2f"|format(final_leftover) }}
+    </div>
+  </div>
+
+</div>
+
+<div class="shadow rounded-lg p-6"
+     style="background-color: var(--color-card-bg); border: 1px solid var(--color-border);">
+
+  <h3 class="text-xl font-semibold mb-4" style="color: var(--color-text);">
+    Quick Actions
+  </h3>
+
+  <div class="flex flex-wrap gap-3">
+    <a href="{{ url_for('income_month_view', year=year, month=month) }}"
+       class="btn-primary inline-block">
+      View Income
+    </a>
+
+    <a href="{{ url_for('income_form') }}"
+       class="btn-secondary inline-block">
+      Add Paycheck
+    </a>
+
+    <a href="{{ url_for('expenses_month_view', year=year, month=month) }}"
+       class="btn-secondary inline-block">
+      View Expenses
+    </a>
+
+    <a href="{{ url_for('savings_month_view', year=year, month=month) }}"
+       class="btn-secondary inline-block">
+      View Savings
+    </a>
+  </div>
+
+</div>
 
 {% endblock %}

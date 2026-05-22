@@ -200,7 +200,63 @@ def create_app():
     @app.route("/")
     @login_required
     def home():
-        return render_template("dashboard.html")
+        user = get_current_user()
+        today = date.today()
+
+        year = today.year
+        month = today.month
+
+        month_start = date(year, month, 1)
+
+        if month == 12:
+            next_month_start = date(year + 1, 1, 1)
+        else:
+            next_month_start = date(year, month + 1, 1)
+
+        paychecks = (
+            Paycheck.query
+            .filter(
+                Paycheck.user_id == user.id,
+                Paycheck.pay_date >= month_start,
+                Paycheck.pay_date < next_month_start,
+            )
+            .all()
+        )
+
+        total_income = sum(p.net_amount for p in paychecks)
+
+        expenses = (
+            Expense.query
+            .filter_by(user_id=user.id, year=year, month=month, is_active=True)
+            .all()
+        )
+
+        total_expenses = sum(e.cost for e in expenses)
+
+        money_left_after_expenses = total_income - total_expenses
+
+        savings_allocations = (
+            SavingsAllocation.query
+            .filter_by(user_id=user.id, year=year, month=month, is_active=True)
+            .all()
+        )
+
+        total_savings_percent = sum(s.percent for s in savings_allocations)
+        total_savings_amount = money_left_after_expenses * (total_savings_percent / 100.0)
+
+        final_leftover = money_left_after_expenses - total_savings_amount
+
+        return render_template(
+            "dashboard.html",
+            year=year,
+            month=month,
+            total_income=total_income,
+            total_expenses=total_expenses,
+            money_left_after_expenses=money_left_after_expenses,
+            total_savings_percent=total_savings_percent,
+            total_savings_amount=total_savings_amount,
+            final_leftover=final_leftover,
+        )
 
     # ==================================================================
     # ROUTE: Weekly Income Form
