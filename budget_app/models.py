@@ -65,6 +65,9 @@ class User(db.Model):
     # In professional applications, emails are ALWAYS required.
     email = db.Column(db.String(255), unique=True, nullable=False)
 
+    # display name for the top right of the page
+    display_name = db.Column(db.String(100), nullable=True)
+    
     # --------------------------------------------------------------
     # password_hash = SECURE STORED PASSWORD
     # --------------------------------------------------------------

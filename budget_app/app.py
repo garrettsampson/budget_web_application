@@ -108,15 +108,21 @@ def create_app():
         Creates a new user account.
 
         Form fields expected:
+        - display_name
         - email
         - password
         - confirm_password
         """
 
         if request.method == "POST":
+            display_name = (request.form.get("display_name") or "").strip()
             email = (request.form.get("email") or "").strip().lower()
             password = request.form.get("password") or ""
             confirm_password = request.form.get("confirm_password") or ""
+
+            if not display_name:
+                flash("Account name is required.", "error")
+                return redirect(url_for("register"))
 
             if not email:
                 flash("Email is required.", "error")
@@ -138,6 +144,7 @@ def create_app():
 
             new_user = User(
                 email=email,
+                display_name=display_name,
                 password_hash=generate_password_hash(password),
             )
 
@@ -145,6 +152,9 @@ def create_app():
             db.session.commit()
 
             session["user_id"] = new_user.id
+            session["display_name"] = new_user.display_name
+            session["user_email"] = new_user.email
+
             flash("Account created successfully.", "success")
 
             return redirect(url_for("home"))
@@ -179,6 +189,8 @@ def create_app():
                 return redirect(url_for("login"))
 
             session["user_id"] = user.id
+            session["display_name"] = user.display_name or user.email
+            session["user_email"] = user.email
             flash("Logged in successfully.", "success")
 
             return redirect(url_for("home"))
