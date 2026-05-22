@@ -1,0 +1,150 @@
+{% extends "base.html" %}
+{% block content %}
+
+<h2 class="text-2xl font-bold mb-4" style="color: var(--color-text);">
+  Account Settings
+</h2>
+
+<div class="space-y-6">
+
+  <div class="shadow rounded-lg p-6"
+       style="background-color: var(--color-card-bg); border: 1px solid var(--color-border);">
+    <h3 class="text-xl font-semibold mb-4" style="color: var(--color-text);">
+      Profile
+    </h3>
+
+    <form method="POST" action="{{ url_for('update_profile') }}" class="space-y-4">
+
+      <div>
+        <label class="block text-sm font-medium mb-1" style="color: var(--color-text);">
+          Account Name
+        </label>
+        <input
+          type="text"
+          name="display_name"
+          value="{{ user.display_name or '' }}"
+          required
+          class="w-full rounded px-3 py-2"
+          style="background-color: var(--color-input-bg);
+                 border: 1px solid var(--color-border);
+                 color: var(--color-text);"
+        >
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium mb-1" style="color: var(--color-text);">
+          Email
+        </label>
+        <input
+          type="email"
+          name="email"
+          value="{{ user.email }}"
+          required
+          class="w-full rounded px-3 py-2"
+          style="background-color: var(--color-input-bg);
+                 border: 1px solid var(--color-border);
+                 color: var(--color-text);"
+        >
+      </div>
+
+      <button type="submit" class="btn-primary">
+        Save Profile
+      </button>
+    </form>
+  </div>
+
+  <div class="shadow rounded-lg p-6"
+       style="background-color: var(--color-card-bg); border: 1px solid var(--color-border);">
+    <h3 class="text-xl font-semibold mb-4" style="color: var(--color-text);">
+      Change Password
+    </h3>
+
+    <form method="POST" action="{{ url_for('change_password') }}" class="space-y-4">
+
+      <input
+        type="password"
+        name="current_password"
+        placeholder="Current password"
+        required
+        class="w-full rounded px-3 py-2"
+        style="background-color: var(--color-input-bg);
+               border: 1px solid var(--color-border);
+               color: var(--color-text);"
+      >
+
+      <input
+        type="password"
+        name="new_password"
+        placeholder="New password"
+        required
+        class="w-full rounded px-3 py-2"
+        style="background-color: var(--color-input-bg);
+               border: 1px solid var(--color-border);
+               color: var(--color-text);"
+      >
+
+      <input
+        type="password"
+        name="confirm_password"
+        placeholder="Confirm new password"
+        required
+        class="w-full rounded px-3 py-2"
+        style="background-color: var(--color-input-bg);
+               border: 1px solid var(--color-border);
+               color: var(--color-text);"
+      >
+
+      <button type="submit" class="btn-primary">
+        Change Password
+      </button>
+    </form>
+  </div>
+
+  <div class="shadow rounded-lg p-6"
+       style="background-color: var(--color-card-bg); border: 1px solid var(--color-error);">
+    <h3 class="text-xl font-semibold mb-2" style="color: var(--color-error);">
+      Delete Account
+    </h3>
+
+    <p class="text-sm mb-4" style="color: var(--color-text-secondary);">
+      This permanently deletes your account, income, expenses, savings, and custom dropdown options.
+    </p>
+
+    <form method="POST"
+          action="{{ url_for('delete_account') }}"
+          class="space-y-4"
+          onsubmit="return confirm('This will permanently delete your account and all budget data. Continue?');">
+
+      <input
+        type="password"
+        name="password"
+        placeholder="Enter your password"
+        required
+        class="w-full rounded px-3 py-2"
+        style="background-color: var(--color-input-bg);
+               border: 1px solid var(--color-border);
+               color: var(--color-text);"
+      >
+
+      <input
+        type="text"
+        name="confirm_text"
+        placeholder="Type DELETE to confirm"
+        required
+        class="w-full rounded px-3 py-2"
+        style="background-color: var(--color-input-bg);
+               border: 1px solid var(--color-border);
+               color: var(--color-text);"
+      >
+
+      <button type="submit"
+              class="rounded px-4 py-2 font-semibold"
+              style="background-color: var(--color-error); color: white;">
+        Delete My Account
+      </button>
+    </form>
+  </div>
+
+</div>
+
+{% endblock %}

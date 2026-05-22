@@ -233,6 +233,11 @@ Flask uses Jinja2 templating, and this file defines the page container.
                         </span>
                     </div>
 
+                    <a href="{{ url_for('account') }}"
+                        class="nav-link">
+                        Account
+                    </a>
+
                     <!-- LOGOUT -->
                     <a href="{{ url_for('logout') }}"
                        class="nav-link">

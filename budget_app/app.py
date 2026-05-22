@@ -205,6 +205,123 @@ def create_app():
         session.clear()
         flash("Logged out successfully.", "success")
         return redirect(url_for("login"))
+    
+    # ==================================================================
+    # ROUTE: Account Settings
+    # ==================================================================
+    @app.route("/account")
+    @login_required
+    def account():
+        user = get_current_user()
+        return render_template("auth/account.html", user=user)
+
+    # ==================================================================
+    # ROUTE: Update Account Name / Email
+    # ==================================================================
+    @app.route("/account/update-profile", methods=["POST"])
+    @login_required
+    def update_profile():
+        user = get_current_user()
+
+        display_name = (request.form.get("display_name") or "").strip()
+        email = (request.form.get("email") or "").strip().lower()
+
+        if not display_name:
+            flash("Account name is required.", "error")
+            return redirect(url_for("account"))
+
+        if not email:
+            flash("Email is required.", "error")
+            return redirect(url_for("account"))
+
+        existing_user = User.query.filter(
+            User.email == email,
+            User.id != user.id
+        ).first()
+
+        if existing_user:
+            flash("That email is already being used by another account.", "error")
+            return redirect(url_for("account"))
+
+        user.display_name = display_name
+        user.email = email
+
+        db.session.commit()
+
+        session["display_name"] = user.display_name
+        session["user_email"] = user.email
+
+        flash("Account profile updated successfully.", "success")
+        return redirect(url_for("account"))
+
+    # ==================================================================
+    # ROUTE: Change Password
+    # ==================================================================
+    @app.route("/account/change-password", methods=["POST"])
+    @login_required
+    def change_password():
+        user = get_current_user()
+
+        current_password = request.form.get("current_password") or ""
+        new_password = request.form.get("new_password") or ""
+        confirm_password = request.form.get("confirm_password") or ""
+
+        if not check_password_hash(user.password_hash, current_password):
+            flash("Current password is incorrect.", "error")
+            return redirect(url_for("account"))
+
+        if not new_password:
+            flash("New password is required.", "error")
+            return redirect(url_for("account"))
+
+        if new_password != confirm_password:
+            flash("New passwords do not match.", "error")
+            return redirect(url_for("account"))
+
+        user.password_hash = generate_password_hash(new_password)
+        db.session.commit()
+
+        flash("Password changed successfully.", "success")
+        return redirect(url_for("account"))
+
+    # ==================================================================
+    # ROUTE: Delete Account
+    # ==================================================================
+    @app.route("/account/delete", methods=["POST"])
+    @login_required
+    def delete_account():
+        user = get_current_user()
+
+        password = request.form.get("password") or ""
+        confirm_text = (request.form.get("confirm_text") or "").strip()
+
+        if not check_password_hash(user.password_hash, password):
+            flash("Password is incorrect. Account was not deleted.", "error")
+            return redirect(url_for("account"))
+
+        if confirm_text != "DELETE":
+            flash("You must type DELETE exactly to confirm account deletion.", "error")
+            return redirect(url_for("account"))
+
+        user_id = user.id
+
+        Paycheck.query.filter_by(user_id=user_id).delete()
+        IncomeWeek.query.filter_by(user_id=user_id).delete()
+        Expense.query.filter_by(user_id=user_id).delete()
+        SavingsAllocation.query.filter_by(user_id=user_id).delete()
+
+        ExpenseBucketOption.query.filter_by(user_id=user_id).delete()
+        ExpenseMerchantOption.query.filter_by(user_id=user_id).delete()
+        SavingsBucketOption.query.filter_by(user_id=user_id).delete()
+        SavingsNameOption.query.filter_by(user_id=user_id).delete()
+
+        User.query.filter_by(id=user_id).delete()
+
+        db.session.commit()
+        session.clear()
+
+        flash("Your account and all related data were deleted.", "success")
+        return redirect(url_for("register"))
 
     # ==================================================================
     # ROUTE: Home Dashboard
