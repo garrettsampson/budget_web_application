@@ -18,3 +18,12 @@ When changing model.py:
         - activate venv
         - open terminal and run 
             - pip install Flask-Migrate
+
+
+When going forward with changing models.py, do this:
+
+    .\venv\Scripts\python.exe -m flask db migrate -m "describe change"
+    .\venv\Scripts\python.exe -m flask db upgrade
+    git add .
+    git commit -m "Describe database change"
+    git push
