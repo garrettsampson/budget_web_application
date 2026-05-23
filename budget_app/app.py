@@ -794,6 +794,10 @@ def create_app():
             round(row["final_leftover"], 2) for row in monthly_rows
         ]
 
+        chart_hours_worked = [
+            round(row["hours_worked"], 2) for row in monthly_rows
+        ]
+
         # --------------------------------------------------------------
         # Chart data for Phase 2C / 2D
         #
@@ -880,6 +884,7 @@ def create_app():
             chart_expense_bucket_data=chart_expense_bucket_data,
             chart_savings_breakdown_labels=chart_savings_breakdown_labels,
             chart_savings_breakdown_data=chart_savings_breakdown_data,
+            chart_hours_worked=chart_hours_worked,
         )
 
     # ==================================================================

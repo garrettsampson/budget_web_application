@@ -424,6 +424,38 @@
 
 </div>
 
+<!-- HOURS WORKED CHART -->
+<div class="shadow rounded-lg p-6 mb-6"
+     style="background-color: var(--color-card-bg); border: 1px solid var(--color-border);">
+
+  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
+    <div>
+      <h3 class="text-xl font-semibold" style="color: var(--color-text);">
+        Hours Worked by Month
+      </h3>
+
+      <p class="text-sm mt-1" style="color: var(--color-text-secondary);">
+        See how much time you put into work throughout the year.
+      </p>
+    </div>
+  </div>
+
+  {% if total_hours_worked > 0 %}
+    <div class="relative" style="height: 320px;">
+      <canvas
+        id="hoursWorkedChart"
+        aria-label="Hours worked chart for {{ selected_year }}"
+        role="img"
+      ></canvas>
+    </div>
+  {% else %}
+    <p style="color: var(--color-text-secondary);">
+      No hours worked data yet. Add paycheck hours to see this chart.
+    </p>
+  {% endif %}
+
+</div>
+
 <!-- MONTH-BY-MONTH TABLE -->
 <div class="shadow rounded-lg p-6 mb-6"
      style="background-color: var(--color-card-bg); border: 1px solid var(--color-border);">
@@ -767,13 +799,14 @@
      style="background-color: var(--color-card-bg); border: 1px solid var(--color-border);">
 
   <h3 class="text-xl font-semibold mb-2" style="color: var(--color-text);">
-    Phase 2D Complete
+    Phase 2 Complete
   </h3>
 
   <p style="color: var(--color-text-secondary);">
     This yearly dashboard now includes improved averages, quick insights,
-    month-by-month percentages, yearly totals, a monthly money flow chart,
-    and yearly bucket breakdown charts. The next phase can add an hours worked chart.
+  month-by-month percentages, yearly totals, a monthly money flow chart,
+  bucket breakdown charts, and an hours worked chart. The next major phase
+  can build the basic Goals page and goal database table.
   </p>
 
 </div>
@@ -791,6 +824,7 @@
     const expenseData = {{ chart_expenses | tojson }};
     const savingsData = {{ chart_savings | tojson }};
     const finalLeftoverData = {{ chart_final_leftover | tojson }};
+    const hoursWorkedData = {{ chart_hours_worked | tojson }};
 
     const expenseBucketLabels = {{ chart_expense_bucket_labels | tojson }};
     const expenseBucketData = {{ chart_expense_bucket_data | tojson }};
@@ -1044,6 +1078,74 @@
         },
       });
     }
+
+    // ------------------------------------------------------------
+    // Hours Worked Bar Chart
+    // ------------------------------------------------------------
+    const hoursWorkedCanvas = document.getElementById("hoursWorkedChart");
+
+    if (hoursWorkedCanvas) {
+      new Chart(hoursWorkedCanvas, {
+        type: "bar",
+        data: {
+          labels: monthLabels,
+          datasets: [
+            {
+              label: "Hours Worked",
+              data: hoursWorkedData,
+              backgroundColor: primaryColor,
+              borderColor: primaryColor,
+              borderWidth: 1,
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+
+          plugins: {
+            legend: {
+              labels: {
+                color: textColor,
+              },
+            },
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  const value = context.raw || 0;
+
+                  return "Hours Worked: " + Number(value).toFixed(2) + " hrs";
+                },
+              },
+            },
+          },
+
+          scales: {
+            x: {
+              ticks: {
+                color: secondaryTextColor,
+              },
+              grid: {
+                color: borderColor,
+              },
+            },
+            y: {
+              beginAtZero: true,
+              ticks: {
+                color: secondaryTextColor,
+                callback: function(value) {
+                  return value + " hrs";
+                },
+              },
+              grid: {
+                color: borderColor,
+              },
+            },
+          },
+        },
+      });
+    }
+
   });
 </script>
 
