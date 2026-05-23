@@ -316,6 +316,38 @@
   </div>
 </div>
 
+<!-- MONTHLY MONEY FLOW CHART -->
+<div class="shadow rounded-lg p-6 mb-6"
+     style="background-color: var(--color-card-bg); border: 1px solid var(--color-border);">
+
+  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
+    <div>
+      <h3 class="text-xl font-semibold" style="color: var(--color-text);">
+        Monthly Money Flow
+      </h3>
+
+      <p class="text-sm mt-1" style="color: var(--color-text-secondary);">
+        Compare monthly net income, expenses, savings allocations, and final leftover.
+      </p>
+    </div>
+  </div>
+
+  {% if months_with_data_count > 0 %}
+    <div class="relative" style="height: 380px;">
+      <canvas
+        id="monthlyMoneyFlowChart"
+        aria-label="Monthly money flow chart for {{ selected_year }}"
+        role="img"
+      ></canvas>
+    </div>
+  {% else %}
+    <p style="color: var(--color-text-secondary);">
+      No chart data yet. Add income, expenses, or savings data to see your yearly money flow.
+    </p>
+  {% endif %}
+
+</div>
+
 <!-- MONTH-BY-MONTH TABLE -->
 <div class="shadow rounded-lg p-6 mb-6"
      style="background-color: var(--color-card-bg); border: 1px solid var(--color-border);">
@@ -670,5 +702,121 @@
     </p>
 
 </div>
+
+
+<!-- CHART.JS CDN -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    const chartCanvas = document.getElementById("monthlyMoneyFlowChart");
+
+    // If the chart canvas is not on the page, stop here.
+    // This prevents errors when there is no data for the selected year.
+    if (!chartCanvas) {
+      return;
+    }
+
+    const monthLabels = {{ chart_month_labels | tojson }};
+    const netIncomeData = {{ chart_net_income | tojson }};
+    const expenseData = {{ chart_expenses | tojson }};
+    const savingsData = {{ chart_savings | tojson }};
+    const finalLeftoverData = {{ chart_final_leftover | tojson }};
+
+    // Pull colors from your existing theme variables.
+    // This helps the chart match whatever theme the user selected.
+    const rootStyles = getComputedStyle(document.documentElement);
+
+    const textColor = rootStyles.getPropertyValue("--color-text").trim();
+    const secondaryTextColor = rootStyles.getPropertyValue("--color-text-secondary").trim();
+    const borderColor = rootStyles.getPropertyValue("--color-border").trim();
+    const primaryColor = rootStyles.getPropertyValue("--color-primary").trim();
+    const successColor = rootStyles.getPropertyValue("--color-success").trim();
+    const errorColor = rootStyles.getPropertyValue("--color-error").trim();
+    const warningColor = rootStyles.getPropertyValue("--color-warning").trim();
+
+    new Chart(chartCanvas, {
+      type: "bar",
+      data: {
+        labels: monthLabels,
+        datasets: [
+          {
+            label: "Net Income",
+            data: netIncomeData,
+            backgroundColor: primaryColor,
+            borderColor: primaryColor,
+            borderWidth: 1,
+          },
+          {
+            label: "Expenses",
+            data: expenseData,
+            backgroundColor: errorColor,
+            borderColor: errorColor,
+            borderWidth: 1,
+          },
+          {
+            label: "Savings",
+            data: savingsData,
+            backgroundColor: successColor,
+            borderColor: successColor,
+            borderWidth: 1,
+          },
+          {
+            label: "Final Leftover",
+            data: finalLeftoverData,
+            backgroundColor: warningColor,
+            borderColor: warningColor,
+            borderWidth: 1,
+          },
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+
+        plugins: {
+          legend: {
+            labels: {
+              color: textColor,
+            },
+          },
+          tooltip: {
+            callbacks: {
+              label: function(context) {
+                const label = context.dataset.label || "";
+                const value = context.raw || 0;
+
+                return label + ": $" + Number(value).toFixed(2);
+              },
+            },
+          },
+        },
+
+        scales: {
+          x: {
+            ticks: {
+              color: secondaryTextColor,
+            },
+            grid: {
+              color: borderColor,
+            },
+          },
+          y: {
+            beginAtZero: true,
+            ticks: {
+              color: secondaryTextColor,
+              callback: function(value) {
+                return "$" + value;
+              },
+            },
+            grid: {
+              color: borderColor,
+            },
+          },
+        },
+      },
+    });
+  });
+</script>
 
 {% endblock %}

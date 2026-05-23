@@ -764,6 +764,35 @@ def create_app():
             key=lambda item: item["amount"],
             reverse=True,
         )
+        # --------------------------------------------------------------
+        # Chart data for Phase 2A / 2B
+        #
+        # This prepares simple lists that JavaScript can use to build
+        # charts on the yearly dashboard.
+        #
+        # Chart.js needs arrays like:
+        #   labels: ["January", "February", ...]
+        #   data:   [1200, 950, ...]
+        # --------------------------------------------------------------
+        chart_month_labels = [
+            row["month_name"] for row in monthly_rows
+        ]
+
+        chart_net_income = [
+            round(row["net_income"], 2) for row in monthly_rows
+        ]
+
+        chart_expenses = [
+            round(row["expenses"], 2) for row in monthly_rows
+        ]
+
+        chart_savings = [
+            round(row["savings_amount"], 2) for row in monthly_rows
+        ]
+
+        chart_final_leftover = [
+            round(row["final_leftover"], 2) for row in monthly_rows
+        ]
 
         # --------------------------------------------------------------
         # Available years for the dropdown.
@@ -813,6 +842,15 @@ def create_app():
             highest_expense_month=highest_expense_month,
             best_leftover_month=best_leftover_month,
             lowest_leftover_month=lowest_leftover_month,
+
+
+
+            # Chart data
+            chart_month_labels=chart_month_labels,
+            chart_net_income=chart_net_income,
+            chart_expenses=chart_expenses,
+            chart_savings=chart_savings,
+            chart_final_leftover=chart_final_leftover,
         )
 
     # ==================================================================
