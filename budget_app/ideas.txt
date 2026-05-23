@@ -286,3 +286,9 @@ Need to prioritize:
 4. Recurring systems
 5. Archive timeline system
 6. Team/shared budgeting system
+
+
+Rileys ideas:
+ - Notes section
+  - notes section for keeping different accounts seperaate and remembering their purpose
+  - EX: savings account- apy 3.1% for emergency funds or helping with extra expenses, roth ira- retiernment profil, add 10$, it gets matched and stays in there untaxed, etc. 

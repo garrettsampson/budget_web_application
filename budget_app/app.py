@@ -582,12 +582,42 @@ def create_app():
             savings_breakdown_totals[key]["percent_total"] += percent
 
         # --------------------------------------------------------------
-        # Now calculate final leftover for each month.
+        # Now calculate final leftover and extra per-month display stats.
         # --------------------------------------------------------------
         for row in monthly_rows:
             row["final_leftover"] = (
                 row["money_left_after_expenses"] - row["savings_amount"]
             )
+
+            # A month counts as having data if anything meaningful was entered.
+            row["has_data"] = (
+                row["net_income"] > 0
+                or row["gross_income"] > 0
+                or row["expenses"] > 0
+                or row["savings_amount"] > 0
+                or row["hours_worked"] > 0
+            )
+
+            # Expenses as a percent of that month's net income.
+            if row["net_income"] > 0:
+                row["expense_percent_of_income"] = (
+                    row["expenses"] / row["net_income"]
+                ) * 100
+
+                row["savings_percent_of_income"] = (
+                    row["savings_amount"] / row["net_income"]
+                ) * 100
+            else:
+                row["expense_percent_of_income"] = 0.0
+                row["savings_percent_of_income"] = 0.0
+
+            # Simple status label for styling in the table.
+            if row["final_leftover"] > 0:
+                row["leftover_status"] = "positive"
+            elif row["final_leftover"] < 0:
+                row["leftover_status"] = "negative"
+            else:
+                row["leftover_status"] = "neutral"
 
         # --------------------------------------------------------------
         # Yearly totals
@@ -604,15 +634,77 @@ def create_app():
         total_savings_amount = sum(row["savings_amount"] for row in monthly_rows)
         total_final_leftover = sum(row["final_leftover"] for row in monthly_rows)
 
+
         # --------------------------------------------------------------
         # Averages
         #
-        # For Phase 1, average across all 12 months.
-        # Later we can improve this to average only months with data.
+        # Phase 1 averaged across all 12 months.
+        # Phase 1.5 improves this by averaging only months with actual data.
+        #
+        # Example:
+        # If you only have data for January through May, the average should
+        # divide by 5 instead of 12.
         # --------------------------------------------------------------
-        average_monthly_net_income = total_net_income / 12
-        average_monthly_expenses = total_expenses / 12
-        average_monthly_savings = total_savings_amount / 12
+        months_with_data = [
+            row for row in monthly_rows
+            if row["has_data"]
+        ]
+
+        months_with_data_count = len(months_with_data)
+
+        if months_with_data_count > 0:
+            average_monthly_net_income = (
+                total_net_income / months_with_data_count
+            )
+            average_monthly_expenses = (
+                total_expenses / months_with_data_count
+            )
+            average_monthly_savings = (
+                total_savings_amount / months_with_data_count
+            )
+        else:
+            average_monthly_net_income = 0.0
+            average_monthly_expenses = 0.0
+            average_monthly_savings = 0.0
+
+        if total_hours_worked > 0:
+            average_net_income_per_hour = (
+                total_net_income / total_hours_worked
+            )
+        else:
+            average_net_income_per_hour = 0.0
+
+
+        # --------------------------------------------------------------
+        # Quick yearly insights
+        #
+        # These make the yearly page more useful at a glance.
+        # --------------------------------------------------------------
+        if months_with_data:
+            highest_income_month = max(
+                months_with_data,
+                key=lambda row: row["net_income"],
+            )
+
+            highest_expense_month = max(
+                months_with_data,
+                key=lambda row: row["expenses"],
+            )
+
+            best_leftover_month = max(
+                months_with_data,
+                key=lambda row: row["final_leftover"],
+            )
+
+            lowest_leftover_month = min(
+                months_with_data,
+                key=lambda row: row["final_leftover"],
+            )
+        else:
+            highest_income_month = None
+            highest_expense_month = None
+            best_leftover_month = None
+            lowest_leftover_month = None
 
         # --------------------------------------------------------------
         # Percent calculations
@@ -715,6 +807,12 @@ def create_app():
             average_monthly_savings=average_monthly_savings,
             expense_percent_of_income=expense_percent_of_income,
             savings_percent_of_income=savings_percent_of_income,
+            months_with_data_count=months_with_data_count,
+            average_net_income_per_hour=average_net_income_per_hour,
+            highest_income_month=highest_income_month,
+            highest_expense_month=highest_expense_month,
+            best_leftover_month=best_leftover_month,
+            lowest_leftover_month=lowest_leftover_month,
         )
 
     # ==================================================================

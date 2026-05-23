@@ -90,6 +90,51 @@
 
 </div>
 
+<!-- YEAR STATUS CARD -->
+<div class="shadow rounded-lg p-6 mb-6"
+     style="background-color: var(--color-card-bg); border: 1px solid var(--color-border);">
+
+  <h3 class="text-xl font-semibold mb-2" style="color: var(--color-text);">
+    Year Status
+  </h3>
+
+  {% if total_net_income == 0 and total_expenses == 0 %}
+    <p style="color: var(--color-text-secondary);">
+      No income or expense data has been entered for {{ selected_year }} yet.
+    </p>
+  {% else %}
+
+    {% if total_final_leftover > 0 %}
+      <p style="color: var(--color-text-secondary);">
+        You are currently positive for the year. After expenses and savings allocations,
+        you still have
+        <span class="font-bold" style="color: var(--color-success);">
+          ${{ "%.2f"|format(total_final_leftover) }}
+        </span>
+        remaining.
+      </p>
+    {% elif total_final_leftover < 0 %}
+      <p style="color: var(--color-text-secondary);">
+        You are currently negative for the year by
+        <span class="font-bold" style="color: var(--color-error);">
+          ${{ "%.2f"|format(total_final_leftover * -1) }}
+        </span>
+        after expenses and savings allocations.
+      </p>
+    {% else %}
+      <p style="color: var(--color-text-secondary);">
+        Your yearly income, expenses, and savings allocations are currently balanced exactly.
+      </p>
+    {% endif %}
+
+    <p class="mt-2 text-sm" style="color: var(--color-text-secondary);">
+      Expenses used {{ "%.1f"|format(expense_percent_of_income) }}% of your net income,
+      and savings used {{ "%.1f"|format(savings_percent_of_income) }}%.
+    </p>
+
+  {% endif %}
+</div>
+
 <!-- SECONDARY SUMMARY CARDS -->
 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
 
@@ -135,15 +180,102 @@
 
 </div>
 
+<!-- QUICK YEARLY INSIGHTS -->
+<div class="shadow rounded-lg p-6 mb-6"
+     style="background-color: var(--color-card-bg); border: 1px solid var(--color-border);">
+
+  <h3 class="text-xl font-semibold mb-2" style="color: var(--color-text);">
+    Quick Yearly Insights
+  </h3>
+
+  <p class="text-sm mb-4" style="color: var(--color-text-secondary);">
+    Fast highlights from your yearly data.
+  </p>
+
+  {% if months_with_data_count > 0 %}
+    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+
+      <div class="rounded-lg p-4" style="border: 1px solid var(--color-border);">
+        <div class="text-sm" style="color: var(--color-text-secondary);">
+          Highest Income Month
+        </div>
+        <div class="text-xl font-bold" style="color: var(--color-text);">
+          {{ highest_income_month.month_name }}
+        </div>
+        <div class="text-sm mt-1" style="color: var(--color-text-secondary);">
+          ${{ "%.2f"|format(highest_income_month.net_income) }}
+        </div>
+      </div>
+
+      <div class="rounded-lg p-4" style="border: 1px solid var(--color-border);">
+        <div class="text-sm" style="color: var(--color-text-secondary);">
+          Highest Expense Month
+        </div>
+        <div class="text-xl font-bold" style="color: var(--color-text);">
+          {{ highest_expense_month.month_name }}
+        </div>
+        <div class="text-sm mt-1" style="color: var(--color-text-secondary);">
+          ${{ "%.2f"|format(highest_expense_month.expenses) }}
+        </div>
+      </div>
+
+      <div class="rounded-lg p-4" style="border: 1px solid var(--color-border);">
+        <div class="text-sm" style="color: var(--color-text-secondary);">
+          Best Leftover Month
+        </div>
+        <div class="text-xl font-bold" style="color: var(--color-text);">
+          {{ best_leftover_month.month_name }}
+        </div>
+        <div class="text-sm mt-1" style="color: var(--color-success);">
+          ${{ "%.2f"|format(best_leftover_month.final_leftover) }}
+        </div>
+      </div>
+
+      <div class="rounded-lg p-4" style="border: 1px solid var(--color-border);">
+        <div class="text-sm" style="color: var(--color-text-secondary);">
+          Lowest Leftover Month
+        </div>
+        <div class="text-xl font-bold" style="color: var(--color-text);">
+          {{ lowest_leftover_month.month_name }}
+        </div>
+
+        {% if lowest_leftover_month.final_leftover < 0 %}
+          <div class="text-sm mt-1" style="color: var(--color-error);">
+            ${{ "%.2f"|format(lowest_leftover_month.final_leftover) }}
+          </div>
+        {% else %}
+          <div class="text-sm mt-1" style="color: var(--color-text-secondary);">
+            ${{ "%.2f"|format(lowest_leftover_month.final_leftover) }}
+          </div>
+        {% endif %}
+      </div>
+
+    </div>
+  {% else %}
+    <p style="color: var(--color-text-secondary);">
+      No yearly insights yet. Add income, expenses, or savings data to start seeing trends.
+    </p>
+  {% endif %}
+
+</div>
+
 <!-- AVERAGE CARDS -->
 <div class="shadow rounded-lg p-6 mb-6"
      style="background-color: var(--color-card-bg); border: 1px solid var(--color-border);">
 
-  <h3 class="text-xl font-semibold mb-4" style="color: var(--color-text);">
-    Monthly Averages
-  </h3>
+  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-4">
+    <div>
+      <h3 class="text-xl font-semibold" style="color: var(--color-text);">
+        Monthly Averages
+      </h3>
 
-  <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+      <p class="text-sm mt-1" style="color: var(--color-text-secondary);">
+        Based on {{ months_with_data_count }} month{% if months_with_data_count != 1 %}s{% endif %} with data.
+      </p>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
 
     <div class="rounded-lg p-4" style="border: 1px solid var(--color-border);">
       <div class="text-sm" style="color: var(--color-text-secondary);">
@@ -172,6 +304,15 @@
       </div>
     </div>
 
+    <div class="rounded-lg p-4" style="border: 1px solid var(--color-border);">
+      <div class="text-sm" style="color: var(--color-text-secondary);">
+        Average Net Income Per Hour
+      </div>
+      <div class="text-2xl font-bold" style="color: var(--color-text);">
+        ${{ "%.2f"|format(average_net_income_per_hour) }}
+      </div>
+    </div>
+
   </div>
 </div>
 
@@ -193,100 +334,192 @@
 
       <thead>
         <tr style="border-bottom: 1px solid var(--color-border);">
-          <th class="px-4 py-3 text-left text-sm font-semibold" style="color: var(--color-text);">
+            <th class="px-4 py-3 text-left text-sm font-semibold" style="color: var(--color-text);">
             Month
-          </th>
-          <th class="px-4 py-3 text-right text-sm font-semibold" style="color: var(--color-text);">
+            </th>
+
+            <th class="px-4 py-3 text-right text-sm font-semibold" style="color: var(--color-text);">
             Net Income
-          </th>
-          <th class="px-4 py-3 text-right text-sm font-semibold" style="color: var(--color-text);">
+            </th>
+
+            <th class="px-4 py-3 text-right text-sm font-semibold" style="color: var(--color-text);">
             Expenses
-          </th>
-          <th class="px-4 py-3 text-right text-sm font-semibold" style="color: var(--color-text);">
+            </th>
+
+            <th class="px-4 py-3 text-right text-sm font-semibold" style="color: var(--color-text);">
+            Expense %
+            </th>
+
+            <th class="px-4 py-3 text-right text-sm font-semibold" style="color: var(--color-text);">
             Left After Expenses
-          </th>
-          <th class="px-4 py-3 text-right text-sm font-semibold" style="color: var(--color-text);">
+            </th>
+
+            <th class="px-4 py-3 text-right text-sm font-semibold" style="color: var(--color-text);">
             Savings
-          </th>
-          <th class="px-4 py-3 text-right text-sm font-semibold" style="color: var(--color-text);">
+            </th>
+
+            <th class="px-4 py-3 text-right text-sm font-semibold" style="color: var(--color-text);">
             Final Leftover
-          </th>
-          <th class="px-4 py-3 text-right text-sm font-semibold" style="color: var(--color-text);">
+            </th>
+
+            <th class="px-4 py-3 text-right text-sm font-semibold" style="color: var(--color-text);">
             Hours
-          </th>
-          <th class="px-4 py-3 text-center text-sm font-semibold" style="color: var(--color-text);">
+            </th>
+
+            <th class="px-4 py-3 text-center text-sm font-semibold" style="color: var(--color-text);">
             Open
-          </th>
+            </th>
         </tr>
       </thead>
 
       <tbody>
         {% for row in monthly_rows %}
-        <tr style="border-bottom: 1px solid var(--color-border);">
-          <td class="px-4 py-2 font-semibold" style="color: var(--color-text);">
+        <tr
+            style="
+            border-bottom: 1px solid var(--color-border);
+            {% if not row.has_data %}opacity: 0.55;{% endif %}
+            "
+        >
+            <td class="px-4 py-2 font-semibold" style="color: var(--color-text);">
             {{ row.month_name }}
-          </td>
 
-          <td class="px-4 py-2 text-right" style="color: var(--color-text-secondary);">
+            {% if not row.has_data %}
+                <div class="text-xs" style="color: var(--color-text-secondary);">
+                No data
+                </div>
+            {% endif %}
+            </td>
+
+            <td class="px-4 py-2 text-right" style="color: var(--color-text-secondary);">
             ${{ "%.2f"|format(row.net_income) }}
-          </td>
+            </td>
 
-          <td class="px-4 py-2 text-right" style="color: var(--color-text-secondary);">
+            <td class="px-4 py-2 text-right" style="color: var(--color-text-secondary);">
             ${{ "%.2f"|format(row.expenses) }}
-          </td>
+            </td>
 
-          <td class="px-4 py-2 text-right" style="color: var(--color-text-secondary);">
+            <td class="px-4 py-2 text-right" style="color: var(--color-text-secondary);">
+            {{ "%.1f"|format(row.expense_percent_of_income) }}%
+            </td>
+
+            <td class="px-4 py-2 text-right" style="color: var(--color-text-secondary);">
             ${{ "%.2f"|format(row.money_left_after_expenses) }}
-          </td>
+            </td>
 
-          <td class="px-4 py-2 text-right" style="color: var(--color-text-secondary);">
+            <td class="px-4 py-2 text-right" style="color: var(--color-text-secondary);">
             ${{ "%.2f"|format(row.savings_amount) }}
             <div class="text-xs" style="color: var(--color-text-secondary);">
-              {{ "%.1f"|format(row.savings_percent) }}%
+                {{ "%.1f"|format(row.savings_percent_of_income) }}% of income
             </div>
-          </td>
+            </td>
 
-          <td class="px-4 py-2 text-right font-semibold" style="color: var(--color-text);">
-            ${{ "%.2f"|format(row.final_leftover) }}
-          </td>
+            <td class="px-4 py-2 text-right font-semibold">
+            {% if row.leftover_status == "positive" %}
+                <span style="color: var(--color-success);">
+                ${{ "%.2f"|format(row.final_leftover) }}
+                </span>
+            {% elif row.leftover_status == "negative" %}
+                <span style="color: var(--color-error);">
+                ${{ "%.2f"|format(row.final_leftover) }}
+                </span>
+            {% else %}
+                <span style="color: var(--color-text-secondary);">
+                ${{ "%.2f"|format(row.final_leftover) }}
+                </span>
+            {% endif %}
+            </td>
 
-          <td class="px-4 py-2 text-right" style="color: var(--color-text-secondary);">
+            <td class="px-4 py-2 text-right" style="color: var(--color-text-secondary);">
             {{ "%.2f"|format(row.hours_worked) }}
-          </td>
+            </td>
 
-          <td class="px-4 py-2 text-center">
+            <td class="px-4 py-2 text-center">
             <div class="flex justify-center gap-2">
-              <a
+                <a
                 href="{{ url_for('income_month_view', year=selected_year, month=row.month) }}"
                 class="text-sm font-semibold hover:underline"
                 style="color: var(--color-primary);"
-              >
+                >
                 Income
-              </a>
+                </a>
 
-              <span style="color: var(--color-text-secondary);">|</span>
+                <span style="color: var(--color-text-secondary);">|</span>
 
-              <a
+                <a
                 href="{{ url_for('expenses_month_view', year=selected_year, month=row.month) }}"
                 class="text-sm font-semibold hover:underline"
                 style="color: var(--color-primary);"
-              >
+                >
                 Expenses
-              </a>
+                </a>
 
-              <span style="color: var(--color-text-secondary);">|</span>
+                <span style="color: var(--color-text-secondary);">|</span>
 
-              <a
+                <a
                 href="{{ url_for('savings_month_view', year=selected_year, month=row.month) }}"
                 class="text-sm font-semibold hover:underline"
                 style="color: var(--color-primary);"
-              >
+                >
                 Savings
-              </a>
+                </a>
             </div>
-          </td>
+            </td>
         </tr>
         {% endfor %}
+
+        <!-- TOTAL ROW -->
+        <tr style="border-top: 2px solid var(--color-border);">
+            <td class="px-4 py-3 font-bold" style="color: var(--color-text);">
+            Total
+            </td>
+
+            <td class="px-4 py-3 text-right font-bold" style="color: var(--color-text);">
+            ${{ "%.2f"|format(total_net_income) }}
+            </td>
+
+            <td class="px-4 py-3 text-right font-bold" style="color: var(--color-text);">
+            ${{ "%.2f"|format(total_expenses) }}
+            </td>
+
+            <td class="px-4 py-3 text-right font-bold" style="color: var(--color-text);">
+            {{ "%.1f"|format(expense_percent_of_income) }}%
+            </td>
+
+            <td class="px-4 py-3 text-right font-bold" style="color: var(--color-text);">
+            ${{ "%.2f"|format(total_money_left_after_expenses) }}
+            </td>
+
+            <td class="px-4 py-3 text-right font-bold" style="color: var(--color-text);">
+            ${{ "%.2f"|format(total_savings_amount) }}
+            <div class="text-xs" style="color: var(--color-text-secondary);">
+                {{ "%.1f"|format(savings_percent_of_income) }}% of income
+            </div>
+            </td>
+
+            <td class="px-4 py-3 text-right font-bold">
+            {% if total_final_leftover > 0 %}
+                <span style="color: var(--color-success);">
+                ${{ "%.2f"|format(total_final_leftover) }}
+                </span>
+            {% elif total_final_leftover < 0 %}
+                <span style="color: var(--color-error);">
+                ${{ "%.2f"|format(total_final_leftover) }}
+                </span>
+            {% else %}
+                <span style="color: var(--color-text-secondary);">
+                ${{ "%.2f"|format(total_final_leftover) }}
+                </span>
+            {% endif %}
+            </td>
+
+            <td class="px-4 py-3 text-right font-bold" style="color: var(--color-text);">
+            {{ "%.2f"|format(total_hours_worked) }}
+            </td>
+
+            <td class="px-4 py-3 text-center" style="color: var(--color-text-secondary);">
+            —
+            </td>
+        </tr>
       </tbody>
 
     </table>
@@ -427,13 +660,14 @@
      style="background-color: var(--color-card-bg); border: 1px solid var(--color-border);">
 
   <h3 class="text-xl font-semibold mb-2" style="color: var(--color-text);">
-    Phase 1 Complete
-  </h3>
+    Phase 1.5 Complete
+    </h3>
 
   <p style="color: var(--color-text-secondary);">
-    This page currently uses numbers and tables only. Later phases can add charts, goal tracking,
-    progress bars, and automatic predictions.
-  </p>
+    This yearly dashboard now includes improved averages, quick insights,
+    month-by-month percentages, yearly totals, and clearer positive or negative leftover status.
+    The next phase can add charts and visual summaries.
+    </p>
 
 </div>
 
