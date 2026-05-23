@@ -795,6 +795,31 @@ def create_app():
         ]
 
         # --------------------------------------------------------------
+        # Chart data for Phase 2C / 2D
+        #
+        # These power the yearly doughnut charts:
+        # - Expense Buckets
+        # - Savings Breakdown
+        # --------------------------------------------------------------
+
+        chart_expense_bucket_labels = [
+            item["bucket"] for item in expense_bucket_rows
+        ]
+
+        chart_expense_bucket_data = [
+            round(item["amount"], 2) for item in expense_bucket_rows
+        ]
+
+        chart_savings_breakdown_labels = [
+            f'{item["bucket"]} - {item["name"]}'
+            for item in savings_breakdown_rows
+        ]
+
+        chart_savings_breakdown_data = [
+            round(item["amount"], 2) for item in savings_breakdown_rows
+        ]
+
+        # --------------------------------------------------------------
         # Available years for the dropdown.
         #
         # We include the selected/current year even if there is no data yet.
@@ -851,6 +876,10 @@ def create_app():
             chart_expenses=chart_expenses,
             chart_savings=chart_savings,
             chart_final_leftover=chart_final_leftover,
+            chart_expense_bucket_labels=chart_expense_bucket_labels,
+            chart_expense_bucket_data=chart_expense_bucket_data,
+            chart_savings_breakdown_labels=chart_savings_breakdown_labels,
+            chart_savings_breakdown_data=chart_savings_breakdown_data,
         )
 
     # ==================================================================

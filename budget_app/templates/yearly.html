@@ -83,9 +83,20 @@
     <div class="text-sm" style="color: var(--color-text-secondary);">
       Final Leftover
     </div>
-    <div class="text-3xl font-bold" style="color: var(--color-text);">
-      ${{ "%.2f"|format(total_final_leftover) }}
-    </div>
+
+    {% if total_final_leftover > 0 %}
+      <div class="text-3xl font-bold" style="color: var(--color-success);">
+        ${{ "%.2f"|format(total_final_leftover) }}
+      </div>
+    {% elif total_final_leftover < 0 %}
+      <div class="text-3xl font-bold" style="color: var(--color-error);">
+        ${{ "%.2f"|format(total_final_leftover) }}
+      </div>
+    {% else %}
+      <div class="text-3xl font-bold" style="color: var(--color-text);">
+        ${{ "%.2f"|format(total_final_leftover) }}
+      </div>
+    {% endif %}
   </div>
 
 </div>
@@ -348,6 +359,71 @@
 
 </div>
 
+<!-- YEARLY BUCKET CHARTS -->
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+
+  <!-- EXPENSE BUCKET CHART -->
+  <div class="shadow rounded-lg p-6"
+       style="background-color: var(--color-card-bg); border: 1px solid var(--color-border);">
+
+    <div class="mb-4">
+      <h3 class="text-xl font-semibold" style="color: var(--color-text);">
+        Expense Bucket Breakdown
+      </h3>
+
+      <p class="text-sm mt-1" style="color: var(--color-text-secondary);">
+        See which categories used the largest share of your yearly expenses.
+      </p>
+    </div>
+
+    {% if expense_bucket_rows %}
+      <div class="relative" style="height: 340px;">
+        <canvas
+          id="expenseBucketChart"
+          aria-label="Expense bucket breakdown chart for {{ selected_year }}"
+          role="img"
+        ></canvas>
+      </div>
+    {% else %}
+      <p style="color: var(--color-text-secondary);">
+        No expense bucket data yet. Add expenses with categories to see this chart.
+      </p>
+    {% endif %}
+
+  </div>
+
+  <!-- SAVINGS BREAKDOWN CHART -->
+  <div class="shadow rounded-lg p-6"
+       style="background-color: var(--color-card-bg); border: 1px solid var(--color-border);">
+
+    <div class="mb-4">
+      <h3 class="text-xl font-semibold" style="color: var(--color-text);">
+        Savings Breakdown
+      </h3>
+
+      <p class="text-sm mt-1" style="color: var(--color-text-secondary);">
+        See where your leftover money was allocated throughout the year.
+      </p>
+    </div>
+
+    {% if savings_breakdown_rows %}
+      <div class="relative" style="height: 340px;">
+        <canvas
+          id="savingsBreakdownChart"
+          aria-label="Savings breakdown chart for {{ selected_year }}"
+          role="img"
+        ></canvas>
+      </div>
+    {% else %}
+      <p style="color: var(--color-text-secondary);">
+        No savings allocation data yet. Add savings allocations to see this chart.
+      </p>
+    {% endif %}
+
+  </div>
+
+</div>
+
 <!-- MONTH-BY-MONTH TABLE -->
 <div class="shadow rounded-lg p-6 mb-6"
      style="background-color: var(--color-card-bg); border: 1px solid var(--color-border);">
@@ -366,191 +442,191 @@
 
       <thead>
         <tr style="border-bottom: 1px solid var(--color-border);">
-            <th class="px-4 py-3 text-left text-sm font-semibold" style="color: var(--color-text);">
+          <th class="px-4 py-3 text-left text-sm font-semibold" style="color: var(--color-text);">
             Month
-            </th>
+          </th>
 
-            <th class="px-4 py-3 text-right text-sm font-semibold" style="color: var(--color-text);">
+          <th class="px-4 py-3 text-right text-sm font-semibold" style="color: var(--color-text);">
             Net Income
-            </th>
+          </th>
 
-            <th class="px-4 py-3 text-right text-sm font-semibold" style="color: var(--color-text);">
+          <th class="px-4 py-3 text-right text-sm font-semibold" style="color: var(--color-text);">
             Expenses
-            </th>
+          </th>
 
-            <th class="px-4 py-3 text-right text-sm font-semibold" style="color: var(--color-text);">
+          <th class="px-4 py-3 text-right text-sm font-semibold" style="color: var(--color-text);">
             Expense %
-            </th>
+          </th>
 
-            <th class="px-4 py-3 text-right text-sm font-semibold" style="color: var(--color-text);">
+          <th class="px-4 py-3 text-right text-sm font-semibold" style="color: var(--color-text);">
             Left After Expenses
-            </th>
+          </th>
 
-            <th class="px-4 py-3 text-right text-sm font-semibold" style="color: var(--color-text);">
+          <th class="px-4 py-3 text-right text-sm font-semibold" style="color: var(--color-text);">
             Savings
-            </th>
+          </th>
 
-            <th class="px-4 py-3 text-right text-sm font-semibold" style="color: var(--color-text);">
+          <th class="px-4 py-3 text-right text-sm font-semibold" style="color: var(--color-text);">
             Final Leftover
-            </th>
+          </th>
 
-            <th class="px-4 py-3 text-right text-sm font-semibold" style="color: var(--color-text);">
+          <th class="px-4 py-3 text-right text-sm font-semibold" style="color: var(--color-text);">
             Hours
-            </th>
+          </th>
 
-            <th class="px-4 py-3 text-center text-sm font-semibold" style="color: var(--color-text);">
+          <th class="px-4 py-3 text-center text-sm font-semibold" style="color: var(--color-text);">
             Open
-            </th>
+          </th>
         </tr>
       </thead>
 
       <tbody>
         {% for row in monthly_rows %}
         <tr
-            style="
+          style="
             border-bottom: 1px solid var(--color-border);
             {% if not row.has_data %}opacity: 0.55;{% endif %}
-            "
+          "
         >
-            <td class="px-4 py-2 font-semibold" style="color: var(--color-text);">
+          <td class="px-4 py-2 font-semibold" style="color: var(--color-text);">
             {{ row.month_name }}
 
             {% if not row.has_data %}
-                <div class="text-xs" style="color: var(--color-text-secondary);">
+              <div class="text-xs" style="color: var(--color-text-secondary);">
                 No data
-                </div>
+              </div>
             {% endif %}
-            </td>
+          </td>
 
-            <td class="px-4 py-2 text-right" style="color: var(--color-text-secondary);">
+          <td class="px-4 py-2 text-right" style="color: var(--color-text-secondary);">
             ${{ "%.2f"|format(row.net_income) }}
-            </td>
+          </td>
 
-            <td class="px-4 py-2 text-right" style="color: var(--color-text-secondary);">
+          <td class="px-4 py-2 text-right" style="color: var(--color-text-secondary);">
             ${{ "%.2f"|format(row.expenses) }}
-            </td>
+          </td>
 
-            <td class="px-4 py-2 text-right" style="color: var(--color-text-secondary);">
+          <td class="px-4 py-2 text-right" style="color: var(--color-text-secondary);">
             {{ "%.1f"|format(row.expense_percent_of_income) }}%
-            </td>
+          </td>
 
-            <td class="px-4 py-2 text-right" style="color: var(--color-text-secondary);">
+          <td class="px-4 py-2 text-right" style="color: var(--color-text-secondary);">
             ${{ "%.2f"|format(row.money_left_after_expenses) }}
-            </td>
+          </td>
 
-            <td class="px-4 py-2 text-right" style="color: var(--color-text-secondary);">
+          <td class="px-4 py-2 text-right" style="color: var(--color-text-secondary);">
             ${{ "%.2f"|format(row.savings_amount) }}
             <div class="text-xs" style="color: var(--color-text-secondary);">
-                {{ "%.1f"|format(row.savings_percent_of_income) }}% of income
+              {{ "%.1f"|format(row.savings_percent_of_income) }}% of income
             </div>
-            </td>
+          </td>
 
-            <td class="px-4 py-2 text-right font-semibold">
+          <td class="px-4 py-2 text-right font-semibold">
             {% if row.leftover_status == "positive" %}
-                <span style="color: var(--color-success);">
+              <span style="color: var(--color-success);">
                 ${{ "%.2f"|format(row.final_leftover) }}
-                </span>
+              </span>
             {% elif row.leftover_status == "negative" %}
-                <span style="color: var(--color-error);">
+              <span style="color: var(--color-error);">
                 ${{ "%.2f"|format(row.final_leftover) }}
-                </span>
+              </span>
             {% else %}
-                <span style="color: var(--color-text-secondary);">
+              <span style="color: var(--color-text-secondary);">
                 ${{ "%.2f"|format(row.final_leftover) }}
-                </span>
+              </span>
             {% endif %}
-            </td>
+          </td>
 
-            <td class="px-4 py-2 text-right" style="color: var(--color-text-secondary);">
+          <td class="px-4 py-2 text-right" style="color: var(--color-text-secondary);">
             {{ "%.2f"|format(row.hours_worked) }}
-            </td>
+          </td>
 
-            <td class="px-4 py-2 text-center">
+          <td class="px-4 py-2 text-center">
             <div class="flex justify-center gap-2">
-                <a
+              <a
                 href="{{ url_for('income_month_view', year=selected_year, month=row.month) }}"
                 class="text-sm font-semibold hover:underline"
                 style="color: var(--color-primary);"
-                >
+              >
                 Income
-                </a>
+              </a>
 
-                <span style="color: var(--color-text-secondary);">|</span>
+              <span style="color: var(--color-text-secondary);">|</span>
 
-                <a
+              <a
                 href="{{ url_for('expenses_month_view', year=selected_year, month=row.month) }}"
                 class="text-sm font-semibold hover:underline"
                 style="color: var(--color-primary);"
-                >
+              >
                 Expenses
-                </a>
+              </a>
 
-                <span style="color: var(--color-text-secondary);">|</span>
+              <span style="color: var(--color-text-secondary);">|</span>
 
-                <a
+              <a
                 href="{{ url_for('savings_month_view', year=selected_year, month=row.month) }}"
                 class="text-sm font-semibold hover:underline"
                 style="color: var(--color-primary);"
-                >
+              >
                 Savings
-                </a>
+              </a>
             </div>
-            </td>
+          </td>
         </tr>
         {% endfor %}
 
         <!-- TOTAL ROW -->
         <tr style="border-top: 2px solid var(--color-border);">
-            <td class="px-4 py-3 font-bold" style="color: var(--color-text);">
+          <td class="px-4 py-3 font-bold" style="color: var(--color-text);">
             Total
-            </td>
+          </td>
 
-            <td class="px-4 py-3 text-right font-bold" style="color: var(--color-text);">
+          <td class="px-4 py-3 text-right font-bold" style="color: var(--color-text);">
             ${{ "%.2f"|format(total_net_income) }}
-            </td>
+          </td>
 
-            <td class="px-4 py-3 text-right font-bold" style="color: var(--color-text);">
+          <td class="px-4 py-3 text-right font-bold" style="color: var(--color-text);">
             ${{ "%.2f"|format(total_expenses) }}
-            </td>
+          </td>
 
-            <td class="px-4 py-3 text-right font-bold" style="color: var(--color-text);">
+          <td class="px-4 py-3 text-right font-bold" style="color: var(--color-text);">
             {{ "%.1f"|format(expense_percent_of_income) }}%
-            </td>
+          </td>
 
-            <td class="px-4 py-3 text-right font-bold" style="color: var(--color-text);">
+          <td class="px-4 py-3 text-right font-bold" style="color: var(--color-text);">
             ${{ "%.2f"|format(total_money_left_after_expenses) }}
-            </td>
+          </td>
 
-            <td class="px-4 py-3 text-right font-bold" style="color: var(--color-text);">
+          <td class="px-4 py-3 text-right font-bold" style="color: var(--color-text);">
             ${{ "%.2f"|format(total_savings_amount) }}
             <div class="text-xs" style="color: var(--color-text-secondary);">
-                {{ "%.1f"|format(savings_percent_of_income) }}% of income
+              {{ "%.1f"|format(savings_percent_of_income) }}% of income
             </div>
-            </td>
+          </td>
 
-            <td class="px-4 py-3 text-right font-bold">
+          <td class="px-4 py-3 text-right font-bold">
             {% if total_final_leftover > 0 %}
-                <span style="color: var(--color-success);">
+              <span style="color: var(--color-success);">
                 ${{ "%.2f"|format(total_final_leftover) }}
-                </span>
+              </span>
             {% elif total_final_leftover < 0 %}
-                <span style="color: var(--color-error);">
+              <span style="color: var(--color-error);">
                 ${{ "%.2f"|format(total_final_leftover) }}
-                </span>
+              </span>
             {% else %}
-                <span style="color: var(--color-text-secondary);">
+              <span style="color: var(--color-text-secondary);">
                 ${{ "%.2f"|format(total_final_leftover) }}
-                </span>
+              </span>
             {% endif %}
-            </td>
+          </td>
 
-            <td class="px-4 py-3 text-right font-bold" style="color: var(--color-text);">
+          <td class="px-4 py-3 text-right font-bold" style="color: var(--color-text);">
             {{ "%.2f"|format(total_hours_worked) }}
-            </td>
+          </td>
 
-            <td class="px-4 py-3 text-center" style="color: var(--color-text-secondary);">
+          <td class="px-4 py-3 text-center" style="color: var(--color-text-secondary);">
             —
-            </td>
+          </td>
         </tr>
       </tbody>
 
@@ -558,7 +634,7 @@
   </div>
 </div>
 
-<!-- EXPENSE BUCKET BREAKDOWN -->
+<!-- EXPENSE BUCKET BREAKDOWN TABLES -->
 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
 
   <div class="shadow rounded-lg p-6"
@@ -619,7 +695,6 @@
 
   </div>
 
-  <!-- SAVINGS BREAKDOWN -->
   <div class="shadow rounded-lg p-6"
        style="background-color: var(--color-card-bg); border: 1px solid var(--color-border);">
 
@@ -692,130 +767,283 @@
      style="background-color: var(--color-card-bg); border: 1px solid var(--color-border);">
 
   <h3 class="text-xl font-semibold mb-2" style="color: var(--color-text);">
-    Phase 1.5 Complete
-    </h3>
+    Phase 2D Complete
+  </h3>
 
   <p style="color: var(--color-text-secondary);">
     This yearly dashboard now includes improved averages, quick insights,
-    month-by-month percentages, yearly totals, and clearer positive or negative leftover status.
-    The next phase can add charts and visual summaries.
-    </p>
+    month-by-month percentages, yearly totals, a monthly money flow chart,
+    and yearly bucket breakdown charts. The next phase can add an hours worked chart.
+  </p>
 
 </div>
-
 
 <!-- CHART.JS CDN -->
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <script>
   document.addEventListener("DOMContentLoaded", () => {
-    const chartCanvas = document.getElementById("monthlyMoneyFlowChart");
-
-    // If the chart canvas is not on the page, stop here.
-    // This prevents errors when there is no data for the selected year.
-    if (!chartCanvas) {
-      return;
-    }
-
+    // ------------------------------------------------------------
+    // Data from Flask
+    // ------------------------------------------------------------
     const monthLabels = {{ chart_month_labels | tojson }};
     const netIncomeData = {{ chart_net_income | tojson }};
     const expenseData = {{ chart_expenses | tojson }};
     const savingsData = {{ chart_savings | tojson }};
     const finalLeftoverData = {{ chart_final_leftover | tojson }};
 
-    // Pull colors from your existing theme variables.
-    // This helps the chart match whatever theme the user selected.
+    const expenseBucketLabels = {{ chart_expense_bucket_labels | tojson }};
+    const expenseBucketData = {{ chart_expense_bucket_data | tojson }};
+
+    const savingsBreakdownLabels = {{ chart_savings_breakdown_labels | tojson }};
+    const savingsBreakdownData = {{ chart_savings_breakdown_data | tojson }};
+
+    // ------------------------------------------------------------
+    // Theme colors with safe fallback values
+    // ------------------------------------------------------------
     const rootStyles = getComputedStyle(document.documentElement);
 
-    const textColor = rootStyles.getPropertyValue("--color-text").trim();
-    const secondaryTextColor = rootStyles.getPropertyValue("--color-text-secondary").trim();
-    const borderColor = rootStyles.getPropertyValue("--color-border").trim();
-    const primaryColor = rootStyles.getPropertyValue("--color-primary").trim();
-    const successColor = rootStyles.getPropertyValue("--color-success").trim();
-    const errorColor = rootStyles.getPropertyValue("--color-error").trim();
-    const warningColor = rootStyles.getPropertyValue("--color-warning").trim();
+    const textColor =
+      rootStyles.getPropertyValue("--color-text").trim() || "#1f2937";
 
-    new Chart(chartCanvas, {
-      type: "bar",
-      data: {
-        labels: monthLabels,
-        datasets: [
-          {
-            label: "Net Income",
-            data: netIncomeData,
-            backgroundColor: primaryColor,
-            borderColor: primaryColor,
-            borderWidth: 1,
-          },
-          {
-            label: "Expenses",
-            data: expenseData,
-            backgroundColor: errorColor,
-            borderColor: errorColor,
-            borderWidth: 1,
-          },
-          {
-            label: "Savings",
-            data: savingsData,
-            backgroundColor: successColor,
-            borderColor: successColor,
-            borderWidth: 1,
-          },
-          {
-            label: "Final Leftover",
-            data: finalLeftoverData,
-            backgroundColor: warningColor,
-            borderColor: warningColor,
-            borderWidth: 1,
-          },
-        ],
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
+    const secondaryTextColor =
+      rootStyles.getPropertyValue("--color-text-secondary").trim() || "#6b7280";
 
-        plugins: {
-          legend: {
-            labels: {
-              color: textColor,
+    const borderColor =
+      rootStyles.getPropertyValue("--color-border").trim() || "#d1d5db";
+
+    const primaryColor =
+      rootStyles.getPropertyValue("--color-primary").trim() || "#2563eb";
+
+    const successColor =
+      rootStyles.getPropertyValue("--color-success").trim() || "#16a34a";
+
+    const errorColor =
+      rootStyles.getPropertyValue("--color-error").trim() || "#dc2626";
+
+    const warningColor =
+      rootStyles.getPropertyValue("--color-warning").trim() || "#f59e0b";
+
+    // ------------------------------------------------------------
+    // Helper functions
+    // ------------------------------------------------------------
+    function generateChartColors(count) {
+      const colors = [];
+
+      for (let i = 0; i < count; i++) {
+        const hue = Math.round((360 / Math.max(count, 1)) * i);
+        colors.push(`hsl(${hue}, 70%, 55%)`);
+      }
+
+      return colors;
+    }
+
+    function formatCurrency(value) {
+      return "$" + Number(value || 0).toFixed(2);
+    }
+
+    function getTotal(dataArray) {
+      return dataArray.reduce((sum, item) => {
+        return sum + Number(item || 0);
+      }, 0);
+    }
+
+    // ------------------------------------------------------------
+    // Monthly Money Flow Bar Chart
+    // ------------------------------------------------------------
+    const monthlyMoneyFlowCanvas = document.getElementById("monthlyMoneyFlowChart");
+
+    if (monthlyMoneyFlowCanvas) {
+      new Chart(monthlyMoneyFlowCanvas, {
+        type: "bar",
+        data: {
+          labels: monthLabels,
+          datasets: [
+            {
+              label: "Net Income",
+              data: netIncomeData,
+              backgroundColor: primaryColor,
+              borderColor: primaryColor,
+              borderWidth: 1,
+            },
+            {
+              label: "Expenses",
+              data: expenseData,
+              backgroundColor: errorColor,
+              borderColor: errorColor,
+              borderWidth: 1,
+            },
+            {
+              label: "Savings",
+              data: savingsData,
+              backgroundColor: successColor,
+              borderColor: successColor,
+              borderWidth: 1,
+            },
+            {
+              label: "Final Leftover",
+              data: finalLeftoverData,
+              backgroundColor: warningColor,
+              borderColor: warningColor,
+              borderWidth: 1,
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+
+          plugins: {
+            legend: {
+              labels: {
+                color: textColor,
+              },
+            },
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  const label = context.dataset.label || "";
+                  const value = context.raw || 0;
+
+                  return label + ": " + formatCurrency(value);
+                },
+              },
             },
           },
-          tooltip: {
-            callbacks: {
-              label: function(context) {
-                const label = context.dataset.label || "";
-                const value = context.raw || 0;
 
-                return label + ": $" + Number(value).toFixed(2);
+          scales: {
+            x: {
+              ticks: {
+                color: secondaryTextColor,
+              },
+              grid: {
+                color: borderColor,
+              },
+            },
+            y: {
+              beginAtZero: true,
+              ticks: {
+                color: secondaryTextColor,
+                callback: function(value) {
+                  return "$" + value;
+                },
+              },
+              grid: {
+                color: borderColor,
               },
             },
           },
         },
+      });
+    }
 
-        scales: {
-          x: {
-            ticks: {
-              color: secondaryTextColor,
+    // ------------------------------------------------------------
+    // Expense Bucket Doughnut Chart
+    // ------------------------------------------------------------
+    const expenseBucketCanvas = document.getElementById("expenseBucketChart");
+
+    if (expenseBucketCanvas && expenseBucketLabels.length > 0) {
+      new Chart(expenseBucketCanvas, {
+        type: "doughnut",
+        data: {
+          labels: expenseBucketLabels,
+          datasets: [
+            {
+              label: "Expenses",
+              data: expenseBucketData,
+              backgroundColor: generateChartColors(expenseBucketData.length),
+              borderColor: borderColor,
+              borderWidth: 2,
             },
-            grid: {
-              color: borderColor,
-            },
-          },
-          y: {
-            beginAtZero: true,
-            ticks: {
-              color: secondaryTextColor,
-              callback: function(value) {
-                return "$" + value;
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          cutout: "60%",
+
+          plugins: {
+            legend: {
+              position: "bottom",
+              labels: {
+                color: textColor,
+                boxWidth: 14,
+                padding: 16,
               },
             },
-            grid: {
-              color: borderColor,
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  const label = context.label || "";
+                  const value = context.raw || 0;
+                  const total = getTotal(context.dataset.data);
+
+                  const percent = total > 0
+                    ? ((value / total) * 100).toFixed(1)
+                    : "0.0";
+
+                  return label + ": " + formatCurrency(value) + " (" + percent + "%)";
+                },
+              },
             },
           },
         },
-      },
-    });
+      });
+    }
+
+    // ------------------------------------------------------------
+    // Savings Breakdown Doughnut Chart
+    // ------------------------------------------------------------
+    const savingsBreakdownCanvas = document.getElementById("savingsBreakdownChart");
+
+    if (savingsBreakdownCanvas && savingsBreakdownLabels.length > 0) {
+      new Chart(savingsBreakdownCanvas, {
+        type: "doughnut",
+        data: {
+          labels: savingsBreakdownLabels,
+          datasets: [
+            {
+              label: "Savings",
+              data: savingsBreakdownData,
+              backgroundColor: generateChartColors(savingsBreakdownData.length),
+              borderColor: borderColor,
+              borderWidth: 2,
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          cutout: "60%",
+
+          plugins: {
+            legend: {
+              position: "bottom",
+              labels: {
+                color: textColor,
+                boxWidth: 14,
+                padding: 16,
+              },
+            },
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  const label = context.label || "";
+                  const value = context.raw || 0;
+                  const total = getTotal(context.dataset.data);
+
+                  const percent = total > 0
+                    ? ((value / total) * 100).toFixed(1)
+                    : "0.0";
+
+                  return label + ": " + formatCurrency(value) + " (" + percent + "%)";
+                },
+              },
+            },
+          },
+        },
+      });
+    }
   });
 </script>
 
