@@ -388,6 +388,336 @@ def create_app():
         )
 
     # ==================================================================
+    # ROUTE: Yearly Dashboard
+    # ==================================================================
+    @app.route("/yearly")
+    @login_required
+    def yearly():
+        """
+        Shows a full-year summary for the logged-in user.
+
+        Phase 1 goals:
+        - No new database tables
+        - No charts yet
+        - Summarize existing Paycheck, Expense, and SavingsAllocation data
+        - Break information down month-by-month
+        - Break expenses down by bucket
+        - Break savings down by bucket/name
+        """
+
+        user = get_current_user()
+        today = date.today()
+
+        # --------------------------------------------------------------
+        # Read selected year from the URL.
+        #
+        # Example:
+        #   /yearly?year=2026
+        #
+        # If no year is provided, use the current year.
+        # --------------------------------------------------------------
+        selected_year = request.args.get("year", today.year, type=int)
+
+        year_start = date(selected_year, 1, 1)
+        next_year_start = date(selected_year + 1, 1, 1)
+
+        # --------------------------------------------------------------
+        # Month names for display
+        # --------------------------------------------------------------
+        month_names = {
+            1: "January",
+            2: "February",
+            3: "March",
+            4: "April",
+            5: "May",
+            6: "June",
+            7: "July",
+            8: "August",
+            9: "September",
+            10: "October",
+            11: "November",
+            12: "December",
+        }
+
+        # --------------------------------------------------------------
+        # Create a starting row for each month.
+        #
+        # We do this first so the page always shows all 12 months,
+        # even if some months have no data yet.
+        # --------------------------------------------------------------
+        monthly_rows = []
+
+        for month_number in range(1, 13):
+            monthly_rows.append(
+                {
+                    "month": month_number,
+                    "month_name": month_names[month_number],
+                    "gross_income": 0.0,
+                    "net_income": 0.0,
+                    "tax_withheld": 0.0,
+                    "hours_worked": 0.0,
+                    "expenses": 0.0,
+                    "money_left_after_expenses": 0.0,
+                    "savings_percent": 0.0,
+                    "savings_amount": 0.0,
+                    "final_leftover": 0.0,
+                }
+            )
+
+        # This lets us quickly access a month row by month number.
+        # Example:
+        #   rows_by_month[5] gives May's row.
+        rows_by_month = {
+            row["month"]: row for row in monthly_rows
+        }
+
+        # --------------------------------------------------------------
+        # Pull all paychecks for the selected year.
+        #
+        # Income is counted by pay_date because that is when money
+        # actually entered the account.
+        # --------------------------------------------------------------
+        paychecks = (
+            Paycheck.query
+            .filter(
+                Paycheck.user_id == user.id,
+                Paycheck.pay_date >= year_start,
+                Paycheck.pay_date < next_year_start,
+            )
+            .all()
+        )
+
+        for paycheck in paychecks:
+            month_number = paycheck.pay_date.month
+            row = rows_by_month[month_number]
+
+            row["net_income"] += paycheck.net_amount or 0.0
+            row["gross_income"] += paycheck.gross_amount or 0.0
+            row["tax_withheld"] += paycheck.tax_withheld or 0.0
+            row["hours_worked"] += paycheck.hours_worked or 0.0
+
+        # --------------------------------------------------------------
+        # Pull all active expenses for the selected year.
+        # --------------------------------------------------------------
+        expenses = (
+            Expense.query
+            .filter_by(
+                user_id=user.id,
+                year=selected_year,
+                is_active=True,
+            )
+            .all()
+        )
+
+        expense_bucket_totals = {}
+
+        for expense in expenses:
+            month_number = expense.month
+            row = rows_by_month.get(month_number)
+
+            if row:
+                row["expenses"] += expense.cost or 0.0
+
+            bucket = expense.category or "Uncategorized"
+
+            if bucket not in expense_bucket_totals:
+                expense_bucket_totals[bucket] = 0.0
+
+            expense_bucket_totals[bucket] += expense.cost or 0.0
+
+        # --------------------------------------------------------------
+        # Pull all active savings allocations for the selected year.
+        #
+        # IMPORTANT:
+        # SavingsAllocation stores a percent, not a dollar amount.
+        # So we calculate the dollar value using:
+        #
+        #   monthly money left after expenses * allocation percent
+        # --------------------------------------------------------------
+        savings_allocations = (
+            SavingsAllocation.query
+            .filter_by(
+                user_id=user.id,
+                year=selected_year,
+                is_active=True,
+            )
+            .all()
+        )
+
+        # First calculate money left after expenses for each month.
+        for row in monthly_rows:
+            row["money_left_after_expenses"] = (
+                row["net_income"] - row["expenses"]
+            )
+
+        savings_breakdown_totals = {}
+
+        for allocation in savings_allocations:
+            month_number = allocation.month
+            row = rows_by_month.get(month_number)
+
+            if not row:
+                continue
+
+            percent = allocation.percent or 0.0
+            amount = row["money_left_after_expenses"] * (percent / 100.0)
+
+            row["savings_percent"] += percent
+            row["savings_amount"] += amount
+
+            bucket = allocation.bucket or "Uncategorized"
+            name = allocation.name or "Unnamed"
+
+            key = (bucket, name)
+
+            if key not in savings_breakdown_totals:
+                savings_breakdown_totals[key] = {
+                    "bucket": bucket,
+                    "name": name,
+                    "amount": 0.0,
+                    "percent_total": 0.0,
+                }
+
+            savings_breakdown_totals[key]["amount"] += amount
+            savings_breakdown_totals[key]["percent_total"] += percent
+
+        # --------------------------------------------------------------
+        # Now calculate final leftover for each month.
+        # --------------------------------------------------------------
+        for row in monthly_rows:
+            row["final_leftover"] = (
+                row["money_left_after_expenses"] - row["savings_amount"]
+            )
+
+        # --------------------------------------------------------------
+        # Yearly totals
+        # --------------------------------------------------------------
+        total_gross_income = sum(row["gross_income"] for row in monthly_rows)
+        total_net_income = sum(row["net_income"] for row in monthly_rows)
+        total_tax_withheld = sum(row["tax_withheld"] for row in monthly_rows)
+        total_hours_worked = sum(row["hours_worked"] for row in monthly_rows)
+
+        total_expenses = sum(row["expenses"] for row in monthly_rows)
+        total_money_left_after_expenses = sum(
+            row["money_left_after_expenses"] for row in monthly_rows
+        )
+        total_savings_amount = sum(row["savings_amount"] for row in monthly_rows)
+        total_final_leftover = sum(row["final_leftover"] for row in monthly_rows)
+
+        # --------------------------------------------------------------
+        # Averages
+        #
+        # For Phase 1, average across all 12 months.
+        # Later we can improve this to average only months with data.
+        # --------------------------------------------------------------
+        average_monthly_net_income = total_net_income / 12
+        average_monthly_expenses = total_expenses / 12
+        average_monthly_savings = total_savings_amount / 12
+
+        # --------------------------------------------------------------
+        # Percent calculations
+        # --------------------------------------------------------------
+        if total_net_income > 0:
+            expense_percent_of_income = (total_expenses / total_net_income) * 100
+            savings_percent_of_income = (total_savings_amount / total_net_income) * 100
+        else:
+            expense_percent_of_income = 0.0
+            savings_percent_of_income = 0.0
+
+        # --------------------------------------------------------------
+        # Prepare expense bucket breakdown for the template.
+        # --------------------------------------------------------------
+        expense_bucket_rows = []
+
+        for bucket, amount in expense_bucket_totals.items():
+            if total_expenses > 0:
+                percent = (amount / total_expenses) * 100
+            else:
+                percent = 0.0
+
+            expense_bucket_rows.append(
+                {
+                    "bucket": bucket,
+                    "amount": amount,
+                    "percent": percent,
+                }
+            )
+
+        expense_bucket_rows.sort(
+            key=lambda item: item["amount"],
+            reverse=True,
+        )
+
+        # --------------------------------------------------------------
+        # Prepare savings breakdown for the template.
+        # --------------------------------------------------------------
+        savings_breakdown_rows = []
+
+        for item in savings_breakdown_totals.values():
+            if total_savings_amount > 0:
+                percent = (item["amount"] / total_savings_amount) * 100
+            else:
+                percent = 0.0
+
+            savings_breakdown_rows.append(
+                {
+                    "bucket": item["bucket"],
+                    "name": item["name"],
+                    "amount": item["amount"],
+                    "percent": percent,
+                }
+            )
+
+        savings_breakdown_rows.sort(
+            key=lambda item: item["amount"],
+            reverse=True,
+        )
+
+        # --------------------------------------------------------------
+        # Available years for the dropdown.
+        #
+        # We include the selected/current year even if there is no data yet.
+        # --------------------------------------------------------------
+        available_years = {today.year, selected_year}
+
+        all_paychecks = Paycheck.query.filter_by(user_id=user.id).all()
+        all_expenses = Expense.query.filter_by(user_id=user.id).all()
+        all_savings = SavingsAllocation.query.filter_by(user_id=user.id).all()
+
+        for paycheck in all_paychecks:
+            available_years.add(paycheck.pay_date.year)
+
+        for expense in all_expenses:
+            available_years.add(expense.year)
+
+        for allocation in all_savings:
+            available_years.add(allocation.year)
+
+        available_years = sorted(available_years, reverse=True)
+
+        return render_template(
+            "yearly.html",
+            selected_year=selected_year,
+            available_years=available_years,
+            monthly_rows=monthly_rows,
+            expense_bucket_rows=expense_bucket_rows,
+            savings_breakdown_rows=savings_breakdown_rows,
+            total_gross_income=total_gross_income,
+            total_net_income=total_net_income,
+            total_tax_withheld=total_tax_withheld,
+            total_hours_worked=total_hours_worked,
+            total_expenses=total_expenses,
+            total_money_left_after_expenses=total_money_left_after_expenses,
+            total_savings_amount=total_savings_amount,
+            total_final_leftover=total_final_leftover,
+            average_monthly_net_income=average_monthly_net_income,
+            average_monthly_expenses=average_monthly_expenses,
+            average_monthly_savings=average_monthly_savings,
+            expense_percent_of_income=expense_percent_of_income,
+            savings_percent_of_income=savings_percent_of_income,
+        )
+
+    # ==================================================================
     # ROUTE: Weekly Income Form
     # ==================================================================
 # ==================================================================
