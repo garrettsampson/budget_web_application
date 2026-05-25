@@ -287,6 +287,18 @@ Need to prioritize:
 5. Archive timeline system
 6. Team/shared budgeting system
 
+Phase 4 Goals Improvements:
+- Goals form should use dropdowns populated from existing savings buckets and names.
+- User should still be able to create a new bucket/name if needed.
+- Add edit button for existing goals.
+- Add better goal prediction messages and estimated completion dates.
+- Make goal creation faster and harder to mess up.
+
+Phase 5 Goals Polish:
+- Add circle/doughnut progress charts for each goal.
+- Make goals feel more rewarding.
+- Add better visual polish, badges, completion messages, and progress indicators.
+
 
 Rileys ideas:
  - Notes section

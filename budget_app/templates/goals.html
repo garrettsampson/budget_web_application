@@ -24,8 +24,32 @@
 
   <p class="text-sm mb-4" style="color: var(--color-text-secondary);">
     The bucket and name should match a savings allocation you already use.
-    Example: Bucket = Investments, Name = Roth IRA.
-  </p>
+    Existing buckets and names will appear as suggestions, but you can still type a new one.
+    </p>
+
+    {% if goal_bucket_name_pairs %}
+    <div class="rounded-lg p-4 mb-4"
+        style="border: 1px solid var(--color-border); background-color: var(--color-bg);">
+
+        <h4 class="text-sm font-semibold mb-2" style="color: var(--color-text);">
+        Existing Savings Pairs
+        </h4>
+
+        <div class="flex flex-wrap gap-2">
+        {% for pair in goal_bucket_name_pairs %}
+            <span
+            class="text-xs rounded-full px-3 py-1"
+            style="
+                border: 1px solid var(--color-border);
+                color: var(--color-text-secondary);
+            "
+            >
+            {{ pair.label }}
+            </span>
+        {% endfor %}
+        </div>
+    </div>
+    {% endif %}
 
   <form method="POST" action="{{ url_for('goals') }}" class="grid grid-cols-1 md:grid-cols-2 gap-4">
 
@@ -80,15 +104,22 @@
       <input
         type="text"
         name="bucket"
+        list="goal-bucket-options"
         placeholder="Pet Care"
         required
         class="w-full rounded px-3 py-2"
         style="
-          background-color: var(--color-input-bg);
-          border: 1px solid var(--color-border);
-          color: var(--color-text);
+            background-color: var(--color-input-bg);
+            border: 1px solid var(--color-border);
+            color: var(--color-text);
         "
-      >
+        >
+
+        <datalist id="goal-bucket-options">
+        {% for bucket in goal_bucket_options %}
+            <option value="{{ bucket }}"></option>
+        {% endfor %}
+        </datalist>
     </div>
 
     <!-- NAME -->
@@ -100,15 +131,22 @@
       <input
         type="text"
         name="name"
+        list="goal-name-options"
         placeholder="Emergency Fund"
         required
         class="w-full rounded px-3 py-2"
         style="
-          background-color: var(--color-input-bg);
-          border: 1px solid var(--color-border);
-          color: var(--color-text);
+            background-color: var(--color-input-bg);
+            border: 1px solid var(--color-border);
+            color: var(--color-text);
         "
-      >
+        >
+
+        <datalist id="goal-name-options">
+        {% for name in goal_name_options %}
+            <option value="{{ name }}"></option>
+        {% endfor %}
+        </datalist>
     </div>
 
     <!-- STARTING AMOUNT -->
@@ -229,16 +267,26 @@
               </p>
             </div>
 
-            <form method="POST" action="{{ url_for('delete_goal', goal_id=goal.id) }}">
-              <button
-                type="submit"
-                class="text-sm font-semibold hover:underline"
-                style="color: var(--color-error);"
-                onclick="return confirm('Remove this goal?');"
-              >
-                Remove
-              </button>
-            </form>
+            <div class="flex items-center gap-3">
+                <a
+                    href="{{ url_for('edit_goal', goal_id=goal.id) }}"
+                    class="text-sm font-semibold hover:underline"
+                    style="color: var(--color-primary);"
+                >
+                    Edit
+                </a>
+
+                <form method="POST" action="{{ url_for('delete_goal', goal_id=goal.id) }}">
+                    <button
+                    type="submit"
+                    class="text-sm font-semibold hover:underline"
+                    style="color: var(--color-error);"
+                    onclick="return confirm('Remove this goal?');"
+                    >
+                    Remove
+                    </button>
+                </form>
+                </div>
           </div>
 
           <!-- PROGRESS BAR -->

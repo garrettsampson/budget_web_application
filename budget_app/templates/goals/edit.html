@@ -1,0 +1,248 @@
+{% extends "base.html" %}
+{% block content %}
+
+<!-- PAGE TITLE -->
+<div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+  <div>
+    <h2 class="text-2xl font-bold" style="color: var(--color-text);">
+      Edit Goal
+    </h2>
+
+    <p class="mt-1" style="color: var(--color-text-secondary);">
+      Update your goal details if something was entered incorrectly.
+    </p>
+  </div>
+
+  <a
+    href="{{ url_for('goals') }}"
+    class="px-4 py-2 rounded font-semibold"
+    style="
+      background-color: var(--color-card-bg);
+      border: 1px solid var(--color-border);
+      color: var(--color-text);
+    "
+  >
+    Back to Goals
+  </a>
+</div>
+
+<!-- EDIT GOAL FORM -->
+<div class="shadow rounded-lg p-6"
+     style="background-color: var(--color-card-bg); border: 1px solid var(--color-border);">
+
+  <h3 class="text-xl font-semibold mb-2" style="color: var(--color-text);">
+    Edit {{ goal.title }}
+  </h3>
+
+  <p class="text-sm mb-4" style="color: var(--color-text-secondary);">
+    The bucket and name should match a savings allocation. Existing options will appear as suggestions,
+    but you can still type a new value.
+  </p>
+
+  {% if goal_bucket_name_pairs %}
+    <div class="rounded-lg p-4 mb-4"
+         style="border: 1px solid var(--color-border); background-color: var(--color-bg);">
+
+      <h4 class="text-sm font-semibold mb-2" style="color: var(--color-text);">
+        Existing Savings Pairs
+      </h4>
+
+      <div class="flex flex-wrap gap-2">
+        {% for pair in goal_bucket_name_pairs %}
+          <span
+            class="text-xs rounded-full px-3 py-1"
+            style="
+              border: 1px solid var(--color-border);
+              color: var(--color-text-secondary);
+            "
+          >
+            {{ pair.label }}
+          </span>
+        {% endfor %}
+      </div>
+    </div>
+  {% endif %}
+
+  <form method="POST" action="{{ url_for('edit_goal', goal_id=goal.id) }}" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+
+    <!-- GOAL TITLE -->
+    <div>
+      <label class="block text-sm font-semibold mb-1" style="color: var(--color-text);">
+        Goal Title
+      </label>
+
+      <input
+        type="text"
+        name="title"
+        value="{{ goal.title }}"
+        required
+        class="w-full rounded px-3 py-2"
+        style="
+          background-color: var(--color-input-bg);
+          border: 1px solid var(--color-border);
+          color: var(--color-text);
+        "
+      >
+    </div>
+
+    <!-- TARGET AMOUNT -->
+    <div>
+      <label class="block text-sm font-semibold mb-1" style="color: var(--color-text);">
+        Target Amount
+      </label>
+
+      <input
+        type="number"
+        step="0.01"
+        min="0.01"
+        name="target_amount"
+        value="{{ "%.2f"|format(goal.target_amount) }}"
+        required
+        class="w-full rounded px-3 py-2"
+        style="
+          background-color: var(--color-input-bg);
+          border: 1px solid var(--color-border);
+          color: var(--color-text);
+        "
+      >
+    </div>
+
+    <!-- BUCKET -->
+    <div>
+      <label class="block text-sm font-semibold mb-1" style="color: var(--color-text);">
+        Bucket
+      </label>
+
+      <input
+        type="text"
+        name="bucket"
+        list="goal-bucket-options"
+        value="{{ goal.bucket }}"
+        required
+        class="w-full rounded px-3 py-2"
+        style="
+          background-color: var(--color-input-bg);
+          border: 1px solid var(--color-border);
+          color: var(--color-text);
+        "
+      >
+
+      <datalist id="goal-bucket-options">
+        {% for bucket in goal_bucket_options %}
+          <option value="{{ bucket }}"></option>
+        {% endfor %}
+      </datalist>
+    </div>
+
+    <!-- NAME -->
+    <div>
+      <label class="block text-sm font-semibold mb-1" style="color: var(--color-text);">
+        Name
+      </label>
+
+      <input
+        type="text"
+        name="name"
+        list="goal-name-options"
+        value="{{ goal.name }}"
+        required
+        class="w-full rounded px-3 py-2"
+        style="
+          background-color: var(--color-input-bg);
+          border: 1px solid var(--color-border);
+          color: var(--color-text);
+        "
+      >
+
+      <datalist id="goal-name-options">
+        {% for name in goal_name_options %}
+          <option value="{{ name }}"></option>
+        {% endfor %}
+      </datalist>
+    </div>
+
+    <!-- STARTING AMOUNT -->
+    <div>
+      <label class="block text-sm font-semibold mb-1" style="color: var(--color-text);">
+        Starting Amount
+      </label>
+
+      <input
+        type="number"
+        step="0.01"
+        min="0"
+        name="starting_amount"
+        value="{{ "%.2f"|format(goal.starting_amount or 0) }}"
+        class="w-full rounded px-3 py-2"
+        style="
+          background-color: var(--color-input-bg);
+          border: 1px solid var(--color-border);
+          color: var(--color-text);
+        "
+      >
+    </div>
+
+    <!-- START MONTH / YEAR -->
+    <div>
+      <label class="block text-sm font-semibold mb-1" style="color: var(--color-text);">
+        Start Month / Year
+      </label>
+
+      <div class="grid grid-cols-2 gap-2">
+        <select
+          name="start_month"
+          class="rounded px-3 py-2"
+          style="
+            background-color: var(--color-input-bg);
+            border: 1px solid var(--color-border);
+            color: var(--color-text);
+          "
+        >
+          {% for month_number in range(1, 13) %}
+            <option value="{{ month_number }}" {% if month_number == goal.start_month %}selected{% endif %}>
+              {{ month_number }}
+            </option>
+          {% endfor %}
+        </select>
+
+        <input
+          type="number"
+          name="start_year"
+          value="{{ goal.start_year }}"
+          class="rounded px-3 py-2"
+          style="
+            background-color: var(--color-input-bg);
+            border: 1px solid var(--color-border);
+            color: var(--color-text);
+          "
+        >
+      </div>
+    </div>
+
+    <!-- BUTTONS -->
+    <div class="md:col-span-2 flex gap-3">
+      <button
+        type="submit"
+        class="px-4 py-2 rounded font-semibold"
+        style="background-color: var(--color-primary); color: white;"
+      >
+        Save Changes
+      </button>
+
+      <a
+        href="{{ url_for('goals') }}"
+        class="px-4 py-2 rounded font-semibold"
+        style="
+          background-color: var(--color-card-bg);
+          border: 1px solid var(--color-border);
+          color: var(--color-text);
+        "
+      >
+        Cancel
+      </a>
+    </div>
+
+  </form>
+</div>
+
+{% endblock %}

@@ -270,6 +270,116 @@ def create_app():
             "months_checked": months_checked,
             "months_with_contribution": months_with_contribution,
         }
+    
+    def get_goal_form_options(user):
+        """
+        Builds bucket/name suggestion lists for the Goals form.
+
+        This pulls from:
+        - Existing savings allocations
+        - Custom savings bucket options
+        - Custom savings name options
+
+        This lets the Goals page suggest things the user has already used,
+        while still allowing them to type something new.
+        """
+
+        bucket_options = set()
+        name_options = set()
+        bucket_name_pairs = []
+
+        # ----------------------------------------------------------
+        # Pull bucket/name pairs from actual savings allocations.
+        # These are the most important because they represent real
+        # data the goal can match against.
+        # ----------------------------------------------------------
+        allocations = (
+            SavingsAllocation.query
+            .filter_by(
+                user_id=user.id,
+                is_active=True,
+            )
+            .all()
+        )
+
+        for allocation in allocations:
+            bucket = (allocation.bucket or "").strip()
+            name = (allocation.name or "").strip()
+
+            if bucket:
+                bucket_options.add(bucket)
+
+            if name:
+                name_options.add(name)
+
+            if bucket and name:
+                pair = {
+                    "bucket": bucket,
+                    "name": name,
+                    "label": f"{bucket} / {name}",
+                }
+
+                if pair not in bucket_name_pairs:
+                    bucket_name_pairs.append(pair)
+
+        # ----------------------------------------------------------
+        # Pull custom bucket options.
+        # ----------------------------------------------------------
+        custom_buckets = (
+            SavingsBucketOption.query
+            .filter_by(
+                user_id=user.id,
+                is_active=True,
+            )
+            .all()
+        )
+
+        for option in custom_buckets:
+            label = (option.label or "").strip()
+
+            if label:
+                bucket_options.add(label)
+
+        # ----------------------------------------------------------
+        # Pull custom name options.
+        # ----------------------------------------------------------
+        custom_names = (
+            SavingsNameOption.query
+            .filter_by(
+                user_id=user.id,
+                is_active=True,
+            )
+            .all()
+        )
+
+        for option in custom_names:
+            bucket_label = (option.bucket_label or "").strip()
+            name = (option.name or "").strip()
+
+            if bucket_label:
+                bucket_options.add(bucket_label)
+
+            if name:
+                name_options.add(name)
+
+            if bucket_label and name:
+                pair = {
+                    "bucket": bucket_label,
+                    "name": name,
+                    "label": f"{bucket_label} / {name}",
+                }
+
+                if pair not in bucket_name_pairs:
+                    bucket_name_pairs.append(pair)
+
+        return {
+            "bucket_options": sorted(bucket_options),
+            "name_options": sorted(name_options),
+            "bucket_name_pairs": sorted(
+                bucket_name_pairs,
+                key=lambda item: item["label"].lower(),
+            ),
+        }
 
     # ==================================================================
     # ROUTE: Register
@@ -1167,11 +1277,16 @@ def create_app():
                 }
             )
 
+        goal_form_options = get_goal_form_options(user)
+
         return render_template(
             "goals.html",
             goal_cards=goal_cards,
             current_year=today.year,
             current_month=today.month,
+            goal_bucket_options=goal_form_options["bucket_options"],
+            goal_name_options=goal_form_options["name_options"],
+            goal_bucket_name_pairs=goal_form_options["bucket_name_pairs"],
         )
     
 
@@ -1205,6 +1320,103 @@ def create_app():
 
         flash("Goal removed.", "success")
         return redirect(url_for("goals"))
+    
+
+    # ==================================================================
+    # ROUTE: Edit Goal
+    # ==================================================================
+    @app.route("/goals/<int:goal_id>/edit", methods=["GET", "POST"])
+    @login_required
+    def edit_goal(goal_id):
+        """
+        Lets the logged-in user edit an existing goal.
+
+        This is useful if the user typed the wrong bucket/name,
+        wrong target amount, or wrong start month.
+        """
+
+        user = get_current_user()
+
+        goal = (
+            Goal.query
+            .filter_by(
+                id=goal_id,
+                user_id=user.id,
+                is_active=True,
+            )
+            .first_or_404()
+        )
+
+        if request.method == "POST":
+            title = (request.form.get("title") or "").strip()
+            bucket = (request.form.get("bucket") or "").strip()
+            name = (request.form.get("name") or "").strip()
+
+            target_amount = request.form.get("target_amount", type=float)
+            starting_amount = request.form.get(
+                "starting_amount",
+                default=0.0,
+                type=float,
+            )
+
+            start_year = request.form.get(
+                "start_year",
+                default=goal.start_year,
+                type=int,
+            )
+
+            start_month = request.form.get(
+                "start_month",
+                default=goal.start_month,
+                type=int,
+            )
+
+            if not title or not bucket or not name or target_amount is None:
+                flash(
+                    "Please fill out the goal title, bucket, name, and target amount.",
+                    "error",
+                )
+                return redirect(url_for("edit_goal", goal_id=goal.id))
+
+            if target_amount <= 0:
+                flash("Goal target amount must be greater than $0.", "error")
+                return redirect(url_for("edit_goal", goal_id=goal.id))
+
+            if starting_amount is None:
+                starting_amount = 0.0
+
+            if starting_amount < 0:
+                flash("Starting amount cannot be negative.", "error")
+                return redirect(url_for("edit_goal", goal_id=goal.id))
+
+            if start_month < 1 or start_month > 12:
+                flash("Start month must be between 1 and 12.", "error")
+                return redirect(url_for("edit_goal", goal_id=goal.id))
+
+            goal.title = title
+            goal.bucket = bucket
+            goal.name = name
+            goal.target_amount = round(target_amount, 2)
+            goal.starting_amount = round(starting_amount, 2)
+            goal.start_year = start_year
+            goal.start_month = start_month
+
+            db.session.commit()
+
+            flash("Goal updated successfully.", "success")
+            return redirect(url_for("goals"))
+
+        goal_form_options = get_goal_form_options(user)
+
+        return render_template(
+            "goals/edit.html",
+            goal=goal,
+            current_year=date.today().year,
+            current_month=date.today().month,
+            goal_bucket_options=goal_form_options["bucket_options"],
+            goal_name_options=goal_form_options["name_options"],
+            goal_bucket_name_pairs=goal_form_options["bucket_name_pairs"],
+        )
 
     # ==================================================================
     # ROUTE: Weekly Income Form
