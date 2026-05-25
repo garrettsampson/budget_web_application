@@ -403,6 +403,29 @@ class SavingsAllocation(db.Model):
     # Relationship back to the User
     user = db.relationship("User", backref=db.backref("savings_allocations", lazy=True))
 
+class Goal(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+
+    user_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
+
+    title = db.Column(db.String(120), nullable=False)
+
+    bucket = db.Column(db.String(120), nullable=False)
+
+    name = db.Column(db.String(120), nullable=False)
+
+    target_amount = db.Column(db.Float, nullable=False)
+
+    starting_amount = db.Column(db.Float, default=0.0)
+
+    start_year = db.Column(db.Integer, nullable=False)
+
+    start_month = db.Column(db.Integer, nullable=False)
+
+    is_active = db.Column(db.Boolean, default=True)
+
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
 # ===================================================================
 # EXPENSES: Custom dropdown options (Bucket + Merchant)
 # ===================================================================

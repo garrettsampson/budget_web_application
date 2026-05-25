@@ -12,6 +12,7 @@ Now includes:
 
 from datetime import datetime, date
 from functools import wraps
+import math
 
 from flask import (
     Flask,
@@ -37,6 +38,7 @@ from models import (
     ExpenseMerchantOption,
     SavingsBucketOption,
     SavingsNameOption,
+    Goal,
 )
 
 
@@ -98,6 +100,176 @@ def create_app():
             return view_func(*args, **kwargs)
 
         return wrapped_view
+    
+
+    def calculate_goal_progress(goal, user):
+        """
+        Calculates automatic progress for a goal.
+
+        A goal is connected to savings data by matching:
+        - goal.bucket == SavingsAllocation.bucket
+        - goal.name == SavingsAllocation.name
+
+        Example:
+        Goal:
+            bucket = "Pet Care"
+            name = "Emergency Fund"
+            target_amount = 1000
+
+        Savings Allocation:
+            bucket = "Pet Care"
+            name = "Emergency Fund"
+            percent = 25
+
+        The app calculates the dollar value by using:
+            monthly money left after expenses * allocation percent
+        """
+
+        today = date.today()
+
+        current_year = today.year
+        current_month = today.month
+
+        total_contributed_from_app = 0.0
+        months_checked = 0
+        months_with_contribution = 0
+
+        # Start checking from the goal's start year and month.
+        year = goal.start_year
+        month = goal.start_month
+
+        # Loop from the goal start month up through the current month.
+        while (year < current_year) or (year == current_year and month <= current_month):
+            months_checked += 1
+
+            month_start = date(year, month, 1)
+
+            if month == 12:
+                next_month_start = date(year + 1, 1, 1)
+            else:
+                next_month_start = date(year, month + 1, 1)
+
+            # ----------------------------------------------------------
+            # Get monthly net income from paychecks.
+            # ----------------------------------------------------------
+            paychecks = (
+                Paycheck.query
+                .filter(
+                    Paycheck.user_id == user.id,
+                    Paycheck.pay_date >= month_start,
+                    Paycheck.pay_date < next_month_start,
+                )
+                .all()
+            )
+
+            monthly_net_income = sum(
+                paycheck.net_amount or 0.0
+                for paycheck in paychecks
+            )
+
+            # ----------------------------------------------------------
+            # Get monthly expenses.
+            # ----------------------------------------------------------
+            expenses = (
+                Expense.query
+                .filter_by(
+                    user_id=user.id,
+                    year=year,
+                    month=month,
+                    is_active=True,
+                )
+                .all()
+            )
+
+            monthly_expenses = sum(
+                expense.cost or 0.0
+                for expense in expenses
+            )
+
+            money_left_after_expenses = monthly_net_income - monthly_expenses
+
+            # ----------------------------------------------------------
+            # Get matching savings allocations for this goal.
+            #
+            # This is the exact matching rule:
+            # goal.bucket must equal allocation.bucket
+            # goal.name must equal allocation.name
+            # ----------------------------------------------------------
+            matching_allocations = (
+                SavingsAllocation.query
+                .filter_by(
+                    user_id=user.id,
+                    year=year,
+                    month=month,
+                    bucket=goal.bucket,
+                    name=goal.name,
+                    is_active=True,
+                )
+                .all()
+            )
+
+            monthly_goal_contribution = 0.0
+
+            for allocation in matching_allocations:
+                percent = allocation.percent or 0.0
+                amount = money_left_after_expenses * (percent / 100.0)
+                monthly_goal_contribution += amount
+
+            if monthly_goal_contribution > 0:
+                months_with_contribution += 1
+
+            total_contributed_from_app += monthly_goal_contribution
+
+            # Move to the next month.
+            if month == 12:
+                month = 1
+                year += 1
+            else:
+                month += 1
+
+        # --------------------------------------------------------------
+        # Final progress calculations.
+        # --------------------------------------------------------------
+        current_amount = (goal.starting_amount or 0.0) + total_contributed_from_app
+
+        remaining_amount = goal.target_amount - current_amount
+
+        if remaining_amount < 0:
+            remaining_amount = 0.0
+
+        if goal.target_amount > 0:
+            percent_complete = (current_amount / goal.target_amount) * 100
+        else:
+            percent_complete = 0.0
+
+        if percent_complete > 100:
+            percent_complete = 100.0
+
+        if months_with_contribution > 0:
+            average_monthly_contribution = (
+                total_contributed_from_app / months_with_contribution
+            )
+        else:
+            average_monthly_contribution = 0.0
+
+        if average_monthly_contribution > 0 and remaining_amount > 0:
+            estimated_months_remaining = math.ceil(
+                remaining_amount / average_monthly_contribution
+            )
+        elif remaining_amount == 0:
+            estimated_months_remaining = 0
+        else:
+            estimated_months_remaining = None
+
+        return {
+            "current_amount": current_amount,
+            "remaining_amount": remaining_amount,
+            "percent_complete": percent_complete,
+            "average_monthly_contribution": average_monthly_contribution,
+            "estimated_months_remaining": estimated_months_remaining,
+            "months_checked": months_checked,
+            "months_with_contribution": months_with_contribution,
+        }
 
     # ==================================================================
     # ROUTE: Register
@@ -309,6 +481,7 @@ def create_app():
         IncomeWeek.query.filter_by(user_id=user_id).delete()
         Expense.query.filter_by(user_id=user_id).delete()
         SavingsAllocation.query.filter_by(user_id=user_id).delete()
+        Goal.query.filter_by(user_id=user_id).delete()
 
         ExpenseBucketOption.query.filter_by(user_id=user_id).delete()
         ExpenseMerchantOption.query.filter_by(user_id=user_id).delete()
@@ -886,6 +1059,152 @@ def create_app():
             chart_savings_breakdown_data=chart_savings_breakdown_data,
             chart_hours_worked=chart_hours_worked,
         )
+    
+
+    # ==================================================================
+    # ROUTE: Goals Page
+    # ==================================================================
+    @app.route("/goals", methods=["GET", "POST"])
+    @login_required
+    def goals():
+        """
+        Basic Goals page.
+
+        Phase 3 features:
+        - Create goals
+        - List active goals
+        - Calculate automatic progress from savings allocations
+        - Show percent complete
+        - Show estimated time remaining
+        """
+
+        user = get_current_user()
+        today = date.today()
+
+        if request.method == "POST":
+            title = (request.form.get("title") or "").strip()
+            bucket = (request.form.get("bucket") or "").strip()
+            name = (request.form.get("name") or "").strip()
+
+            target_amount = request.form.get("target_amount", type=float)
+            starting_amount = request.form.get(
+                "starting_amount",
+                default=0.0,
+                type=float,
+            )
+
+            start_year = request.form.get(
+                "start_year",
+                default=today.year,
+                type=int,
+            )
+
+            start_month = request.form.get(
+                "start_month",
+                default=today.month,
+                type=int,
+            )
+
+            if not title or not bucket or not name or target_amount is None:
+                flash(
+                    "Please fill out the goal title, bucket, name, and target amount.",
+                    "error",
+                )
+                return redirect(url_for("goals"))
+
+            if target_amount <= 0:
+                flash("Goal target amount must be greater than $0.", "error")
+                return redirect(url_for("goals"))
+
+            if starting_amount is None:
+                starting_amount = 0.0
+
+            if starting_amount < 0:
+                flash("Starting amount cannot be negative.", "error")
+                return redirect(url_for("goals"))
+
+            if start_month < 1 or start_month > 12:
+                flash("Start month must be between 1 and 12.", "error")
+                return redirect(url_for("goals"))
+
+            new_goal = Goal(
+                user_id=user.id,
+                title=title,
+                bucket=bucket,
+                name=name,
+                target_amount=round(target_amount, 2),
+                starting_amount=round(starting_amount, 2),
+                start_year=start_year,
+                start_month=start_month,
+                is_active=True,
+            )
+
+            db.session.add(new_goal)
+            db.session.commit()
+
+            flash("Goal created successfully.", "success")
+            return redirect(url_for("goals"))
+
+        active_goals = (
+            Goal.query
+            .filter_by(
+                user_id=user.id,
+                is_active=True,
+            )
+            .order_by(Goal.created_at.desc())
+            .all()
+        )
+
+        goal_cards = []
+
+        for goal in active_goals:
+            progress = calculate_goal_progress(goal, user)
+
+            goal_cards.append(
+                {
+                    "goal": goal,
+                    "progress": progress,
+                }
+            )
+
+        return render_template(
+            "goals.html",
+            goal_cards=goal_cards,
+            current_year=today.year,
+            current_month=today.month,
+        )
+    
+
+
+    # ==================================================================
+    # ROUTE: Remove / Archive Goal
+    # ==================================================================
+    @app.route("/goals/<int:goal_id>/delete", methods=["POST"])
+    @login_required
+    def delete_goal(goal_id):
+        """
+        Archives a goal by setting is_active to False.
+
+        This is safer than permanently deleting it because the goal
+        can be hidden without destroying historical user data.
+        """
+
+        user = get_current_user()
+
+        goal = (
+            Goal.query
+            .filter_by(
+                id=goal_id,
+                user_id=user.id,
+            )
+            .first_or_404()
+        )
+
+        goal.is_active = False
+        db.session.commit()
+
+        flash("Goal removed.", "success")
+        return redirect(url_for("goals"))
 
     # ==================================================================
     # ROUTE: Weekly Income Form
