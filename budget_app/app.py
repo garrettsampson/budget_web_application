@@ -110,19 +110,10 @@ def create_app():
         - goal.bucket == SavingsAllocation.bucket
         - goal.name == SavingsAllocation.name
 
-        Example:
-        Goal:
-            bucket = "Pet Care"
-            name = "Emergency Fund"
-            target_amount = 1000
-
-        Savings Allocation:
-            bucket = "Pet Care"
-            name = "Emergency Fund"
-            percent = 25
-
-        The app calculates the dollar value by using:
-            monthly money left after expenses * allocation percent
+        This function now also returns:
+        - status label
+        - estimated completion month/year
+        - better user-facing progress messages
         """
 
         today = date.today()
@@ -130,9 +121,45 @@ def create_app():
         current_year = today.year
         current_month = today.month
 
+        month_names = {
+            1: "January",
+            2: "February",
+            3: "March",
+            4: "April",
+            5: "May",
+            6: "June",
+            7: "July",
+            8: "August",
+            9: "September",
+            10: "October",
+            11: "November",
+            12: "December",
+        }
+
+        def add_months(year, month, months_to_add):
+            """
+            Adds a number of months to a year/month pair.
+
+            Example:
+            May 2026 + 5 months = October 2026
+            """
+
+            month_index = (year * 12) + (month - 1)
+            new_month_index = month_index + months_to_add
+
+            new_year = new_month_index // 12
+            new_month = (new_month_index % 12) + 1
+
+            return new_year, new_month
+
         total_contributed_from_app = 0.0
         months_checked = 0
         months_with_contribution = 0
+
+        current_month_contribution = 0.0
+        most_recent_contribution_amount = 0.0
+        most_recent_contribution_month = None
+        most_recent_contribution_year = None
 
         # Start checking from the goal's start year and month.
         year = goal.start_year
@@ -191,7 +218,7 @@ def create_app():
             # ----------------------------------------------------------
             # Get matching savings allocations for this goal.
             #
-            # This is the exact matching rule:
+            # Exact matching rule:
             # goal.bucket must equal allocation.bucket
             # goal.name must equal allocation.name
             # ----------------------------------------------------------
@@ -215,8 +242,19 @@ def create_app():
                 amount = money_left_after_expenses * (percent / 100.0)
                 monthly_goal_contribution += amount
 
+            # If the calculated contribution is negative, do not subtract from
+            # the goal. This can happen if expenses are higher than income.
+            if monthly_goal_contribution < 0:
+                monthly_goal_contribution = 0.0
+
             if monthly_goal_contribution > 0:
                 months_with_contribution += 1
+                most_recent_contribution_amount = monthly_goal_contribution
+                most_recent_contribution_month = month
+                most_recent_contribution_year = year
+
+            if year == current_year and month == current_month:
+                current_month_contribution = monthly_goal_contribution
 
             total_contributed_from_app += monthly_goal_contribution
 
@@ -256,10 +294,67 @@ def create_app():
             estimated_months_remaining = math.ceil(
                 remaining_amount / average_monthly_contribution
             )
+
+            estimated_completion_year, estimated_completion_month = add_months(
+                current_year,
+                current_month,
+                estimated_months_remaining,
+            )
+
+            estimated_completion_label = (
+                f"{month_names[estimated_completion_month]} {estimated_completion_year}"
+            )
+
         elif remaining_amount == 0:
             estimated_months_remaining = 0
+            estimated_completion_year = current_year
+            estimated_completion_month = current_month
+            estimated_completion_label = f"{month_names[current_month]} {current_year}"
+
         else:
             estimated_months_remaining = None
+            estimated_completion_year = None
+            estimated_completion_month = None
+            estimated_completion_label = None
+
+        # --------------------------------------------------------------
+        # Status label and message.
+        # --------------------------------------------------------------
+        if remaining_amount == 0:
+            status = "completed"
+            status_label = "Completed"
+            status_message = "Goal reached. Great job."
+
+        elif current_amount > 0:
+            status = "in_progress"
+            status_label = "In Progress"
+
+            if estimated_completion_label:
+                status_message = (
+                    f"At your current pace, you should reach this goal around "
+                    f"{estimated_completion_label}."
+                )
+            else:
+                status_message = (
+                    "You have started this goal, but there are not enough recurring "
+                    "matching contributions yet to estimate a completion date."
+                )
+
+        else:
+            status = "not_started"
+            status_label = "Not Started"
+            status_message = (
+                "No matching savings contributions yet. Add a savings allocation "
+                "with this same bucket and name to begin automatic tracking."
+            )
+
+        if most_recent_contribution_month:
+            most_recent_contribution_label = (
+                f"{month_names[most_recent_contribution_month]} "
+                f"{most_recent_contribution_year}"
+            )
+        else:
+            most_recent_contribution_label = None
 
         return {
             "current_amount": current_amount,
@@ -267,8 +362,19 @@ def create_app():
             "percent_complete": percent_complete,
             "average_monthly_contribution": average_monthly_contribution,
             "estimated_months_remaining": estimated_months_remaining,
+            "estimated_completion_year": estimated_completion_year,
+            "estimated_completion_month": estimated_completion_month,
+            "estimated_completion_label": estimated_completion_label,
             "months_checked": months_checked,
             "months_with_contribution": months_with_contribution,
+            "current_month_contribution": current_month_contribution,
+            "most_recent_contribution_amount": most_recent_contribution_amount,
+            "most_recent_contribution_month": most_recent_contribution_month,
+            "most_recent_contribution_year": most_recent_contribution_year,
+            "most_recent_contribution_label": most_recent_contribution_label,
+            "status": status,
+            "status_label": status_label,
+            "status_message": status_message,
         }
     
     def get_goal_form_options(user):
