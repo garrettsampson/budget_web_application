@@ -1469,6 +1469,16 @@ def create_app():
                 }
             )
 
+            active_goal_cards = [
+            item for item in goal_cards
+            if item["progress"]["status"] != "completed"
+        ]
+
+        completed_goal_cards = [
+            item for item in goal_cards
+            if item["progress"]["status"] == "completed"
+        ]
+
         # --------------------------------------------------------------
         # Goal summary stats for the top of the Goals page.
         # --------------------------------------------------------------
@@ -1553,6 +1563,8 @@ def create_app():
         return render_template(
             "goals.html",
             goal_cards=goal_cards,
+            active_goal_cards=active_goal_cards,
+            completed_goal_cards=completed_goal_cards,
             goal_summary=goal_summary,
             current_year=today.year,
             current_month=today.month,
