@@ -319,6 +319,33 @@
             </div>
           </div>
 
+          <!-- GOAL CIRCLE PROGRESS CHART -->
+          <div class="flex flex-col items-center justify-center mb-4">
+            <div class="relative" style="width: 140px; height: 140px;">
+              <canvas
+                class="goalProgressChart"
+                data-goal-title="{{ goal.title }}"
+                data-percent="{{ '%.2f'|format(progress.percent_complete) }}"
+                aria-label="Progress chart for {{ goal.title }}"
+                role="img"
+              ></canvas>
+
+              <div
+                class="absolute inset-0 flex items-center justify-center pointer-events-none"
+                style="color: var(--color-text);"
+              >
+                <div class="text-center">
+                  <div class="text-2xl font-bold">
+                    {{ "%.0f"|format(progress.percent_complete) }}%
+                  </div>
+                  <div class="text-xs" style="color: var(--color-text-secondary);">
+                    Complete
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
           <!-- PROGRESS BAR -->
           <div class="mb-3">
             <div class="flex justify-between text-sm mb-1">
@@ -527,6 +554,75 @@
     bucketInput.addEventListener("change", updateNameSuggestions);
 
     updateNameSuggestions();
+  });
+</script>
+
+<!-- CHART.JS CDN -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    const goalCharts = document.querySelectorAll(".goalProgressChart");
+
+    if (!goalCharts.length) {
+      return;
+    }
+
+    const rootStyles = getComputedStyle(document.documentElement);
+
+    const successColor =
+      rootStyles.getPropertyValue("--color-success").trim() || "#16a34a";
+
+    const borderColor =
+      rootStyles.getPropertyValue("--color-border").trim() || "#d1d5db";
+
+    const cardBgColor =
+      rootStyles.getPropertyValue("--color-card-bg").trim() || "#ffffff";
+
+    goalCharts.forEach((canvas) => {
+      const rawPercent = Number(canvas.dataset.percent || 0);
+      const safePercent = Math.max(0, Math.min(100, rawPercent));
+      const remainingPercent = 100 - safePercent;
+
+      new Chart(canvas, {
+        type: "doughnut",
+        data: {
+          labels: ["Complete", "Remaining"],
+          datasets: [
+            {
+              data: [safePercent, remainingPercent],
+              backgroundColor: [
+                successColor,
+                borderColor,
+              ],
+              borderColor: cardBgColor,
+              borderWidth: 3,
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          cutout: "72%",
+
+          plugins: {
+            legend: {
+              display: false,
+            },
+            tooltip: {
+              callbacks: {
+                label: function(context) {
+                  const label = context.label || "";
+                  const value = Number(context.raw || 0).toFixed(1);
+
+                  return label + ": " + value + "%";
+                },
+              },
+            },
+          },
+        },
+      });
+    });
   });
 </script>
 
