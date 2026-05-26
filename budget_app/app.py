@@ -795,6 +795,60 @@ def create_app():
 
         final_leftover = money_left_after_expenses - total_savings_amount
 
+
+        # --------------------------------------------------------------
+        # Goals close to completion
+        #
+        # Shows goals on the home dashboard if they are:
+        # - already completed
+        # - estimated to be completed within the next 3 months
+        #
+        # This keeps important goals visible without cluttering the page.
+        # --------------------------------------------------------------
+        active_goals = (
+            Goal.query
+            .filter_by(
+                user_id=user.id,
+                is_active=True,
+            )
+            .order_by(Goal.created_at.desc())
+            .all()
+        )
+
+        goals_close_to_completion = []
+
+        for goal in active_goals:
+            progress = calculate_goal_progress(goal, user)
+
+            estimated_months = progress.get("estimated_months_remaining")
+
+            is_completed = progress.get("status") == "completed"
+
+            is_close = (
+                estimated_months is not None
+                and estimated_months <= 3
+            )
+
+            if is_completed or is_close:
+                goals_close_to_completion.append(
+                    {
+                        "goal": goal,
+                        "progress": progress,
+                    }
+                )
+
+        # Sort so the closest/completed goals appear first.
+        goals_close_to_completion.sort(
+            key=lambda item: (
+                item["progress"]["estimated_months_remaining"]
+                if item["progress"]["estimated_months_remaining"] is not None
+                else 999
+            )
+        )
+
+        # Only show a few on the home page so it does not get cluttered.
+        goals_close_to_completion = goals_close_to_completion[:3]
+
         return render_template(
             "dashboard.html",
             year=year,
@@ -805,6 +859,7 @@ def create_app():
             total_savings_percent=total_savings_percent,
             total_savings_amount=total_savings_amount,
             final_leftover=final_leftover,
+            goals_close_to_completion=goals_close_to_completion,
         )
 
     # ==================================================================

@@ -66,6 +66,148 @@
 
 </div>
 
+<!-- GOALS CLOSE TO COMPLETION -->
+<div class="shadow rounded-lg p-6 mb-6"
+     style="background-color: var(--color-card-bg); border: 1px solid var(--color-border);">
+
+  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+    <div>
+      <h3 class="text-xl font-semibold" style="color: var(--color-text);">
+        Goals Close to Completion
+      </h3>
+
+      <p class="text-sm mt-1" style="color: var(--color-text-secondary);">
+        Goals that are completed or estimated to be reached within the next 3 months.
+      </p>
+    </div>
+
+    <a
+      href="{{ url_for('goals') }}"
+      class="text-sm font-semibold hover:underline"
+      style="color: var(--color-primary);"
+    >
+      View all goals
+    </a>
+  </div>
+
+  {% if goals_close_to_completion %}
+    <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+
+      {% for item in goals_close_to_completion %}
+        {% set goal = item.goal %}
+        {% set progress = item.progress %}
+
+        <div class="rounded-lg p-4"
+             style="border: 1px solid var(--color-border); background-color: var(--color-bg);">
+
+          <div class="flex items-start justify-between gap-3 mb-3">
+            <div>
+              <h4 class="font-bold" style="color: var(--color-text);">
+                {{ goal.title }}
+              </h4>
+
+              <p class="text-xs mt-1" style="color: var(--color-text-secondary);">
+                {{ goal.bucket }} / {{ goal.name }}
+              </p>
+            </div>
+
+            {% if progress.status == "completed" %}
+              <span
+                class="text-xs rounded-full px-2 py-1 font-semibold"
+                style="background-color: var(--color-success); color: white;"
+              >
+                Done
+              </span>
+            {% else %}
+              <span
+                class="text-xs rounded-full px-2 py-1 font-semibold"
+                style="background-color: var(--color-primary); color: white;"
+              >
+                Soon
+              </span>
+            {% endif %}
+          </div>
+
+          <div class="mb-3">
+            <div class="flex justify-between text-xs mb-1">
+              <span style="color: var(--color-text-secondary);">
+                Progress
+              </span>
+
+              <span class="font-semibold" style="color: var(--color-text);">
+                {{ "%.1f"|format(progress.percent_complete) }}%
+              </span>
+            </div>
+
+            <div class="w-full rounded-full overflow-hidden"
+                 style="height: 10px; background-color: var(--color-border);">
+              <div
+                class="h-full rounded-full"
+                style="
+                  width: {{ progress.percent_complete }}%;
+                  background-color: var(--color-success);
+                "
+              ></div>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-2 text-sm mb-3">
+            <div>
+              <div class="text-xs" style="color: var(--color-text-secondary);">
+                Current
+              </div>
+              <div class="font-bold" style="color: var(--color-text);">
+                ${{ "%.2f"|format(progress.current_amount) }}
+              </div>
+            </div>
+
+            <div>
+              <div class="text-xs" style="color: var(--color-text-secondary);">
+                Target
+              </div>
+              <div class="font-bold" style="color: var(--color-text);">
+                ${{ "%.2f"|format(goal.target_amount) }}
+              </div>
+            </div>
+          </div>
+
+          {% if progress.status == "completed" %}
+            <p class="text-xs font-semibold" style="color: var(--color-success);">
+              Goal reached. Great job.
+            </p>
+          {% elif progress.estimated_completion_label %}
+            <p class="text-xs" style="color: var(--color-text-secondary);">
+              Estimated completion:
+              <span class="font-semibold" style="color: var(--color-text);">
+                {{ progress.estimated_completion_label }}
+              </span>
+            </p>
+          {% else %}
+            <p class="text-xs" style="color: var(--color-text-secondary);">
+              Keep contributing to build a stronger estimate.
+            </p>
+          {% endif %}
+
+        </div>
+      {% endfor %}
+
+    </div>
+  {% else %}
+    <div class="rounded-lg p-4"
+         style="border: 1px solid var(--color-border); background-color: var(--color-bg);">
+
+      <p style="color: var(--color-text-secondary);">
+        No goals are estimated to finish within the next 3 months yet.
+      </p>
+
+      <p class="text-sm mt-1" style="color: var(--color-text-secondary);">
+        Keep adding savings allocations and your close goals will appear here automatically.
+      </p>
+    </div>
+  {% endif %}
+
+</div>
+
 <div class="shadow rounded-lg p-6"
      style="background-color: var(--color-card-bg); border: 1px solid var(--color-border);">
 
