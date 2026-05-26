@@ -114,6 +114,7 @@
       </label>
 
       <input
+        id="goalBucketInput"
         type="text"
         name="bucket"
         list="goal-bucket-options"
@@ -141,6 +142,7 @@
       </label>
 
       <input
+        id="goalNameInput"
         type="text"
         name="name"
         list="goal-name-options"
@@ -244,5 +246,68 @@
 
   </form>
 </div>
+
+<script>
+  document.addEventListener("DOMContentLoaded", () => {
+    const bucketInput = document.getElementById("goalBucketInput");
+    const nameInput = document.getElementById("goalNameInput");
+    const nameDatalist = document.getElementById("goal-name-options");
+
+    const allNameOptions = {{ goal_name_options | tojson }};
+    const namesByBucket = {{ goal_names_by_bucket | tojson }};
+
+    if (!bucketInput || !nameInput || !nameDatalist) {
+      return;
+    }
+
+    function findMatchingBucketKey(bucketValue) {
+      const cleanedBucket = bucketValue.trim().toLowerCase();
+
+      if (!cleanedBucket) {
+        return null;
+      }
+
+      return Object.keys(namesByBucket).find((bucketKey) => {
+        return bucketKey.trim().toLowerCase() === cleanedBucket;
+      });
+    }
+
+    function setNameOptions(names) {
+      nameDatalist.innerHTML = "";
+
+      names.forEach((name) => {
+        const option = document.createElement("option");
+        option.value = name;
+        nameDatalist.appendChild(option);
+      });
+    }
+
+    function updateNameSuggestions() {
+      const bucketValue = bucketInput.value.trim();
+
+      // If no bucket is selected yet, show all known names.
+      if (!bucketValue) {
+        setNameOptions(allNameOptions);
+        return;
+      }
+
+      const matchingBucketKey = findMatchingBucketKey(bucketValue);
+
+      // If this bucket exists, only show names connected to that bucket.
+      if (matchingBucketKey) {
+        setNameOptions(namesByBucket[matchingBucketKey] || []);
+        return;
+      }
+
+      // If the user is typing a brand-new bucket, do not suggest unrelated names.
+      setNameOptions([]);
+    }
+
+    bucketInput.addEventListener("input", updateNameSuggestions);
+    bucketInput.addEventListener("change", updateNameSuggestions);
+
+    updateNameSuggestions();
+  });
+</script>
 
 {% endblock %}

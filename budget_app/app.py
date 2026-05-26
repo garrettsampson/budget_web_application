@@ -386,13 +386,61 @@ def create_app():
         - Custom savings bucket options
         - Custom savings name options
 
-        This lets the Goals page suggest things the user has already used,
-        while still allowing them to type something new.
+        It also creates a dictionary of names grouped by bucket.
+
+        Example:
+        {
+            "Pet Care": ["Emergency Fund", "Vet Fund"],
+            "Investments": ["Roth IRA", "Brokerage"]
+        }
+
+        This lets the Goals form show only the names that belong
+        to the selected bucket.
         """
 
         bucket_options = set()
         name_options = set()
+
+        # Used to avoid duplicate bucket/name pair chips.
+        bucket_name_pair_keys = set()
         bucket_name_pairs = []
+
+        # Main mapping for Phase 4D:
+        # bucket -> set of names
+        names_by_bucket = {}
+
+        def add_bucket_name_pair(bucket, name):
+            """
+            Adds a bucket/name pair to all of the correct suggestion lists.
+            """
+
+            bucket = (bucket or "").strip()
+            name = (name or "").strip()
+
+            if bucket:
+                bucket_options.add(bucket)
+
+            if name:
+                name_options.add(name)
+
+            if bucket and name:
+                if bucket not in names_by_bucket:
+                    names_by_bucket[bucket] = set()
+
+                names_by_bucket[bucket].add(name)
+
+                pair_key = (bucket, name)
+
+                if pair_key not in bucket_name_pair_keys:
+                    bucket_name_pair_keys.add(pair_key)
+
+                    bucket_name_pairs.append(
+                        {
+                            "bucket": bucket,
+                            "name": name,
+                            "label": f"{bucket} / {name}",
+                        }
+                    )
 
         # ----------------------------------------------------------
         # Pull bucket/name pairs from actual savings allocations.
@@ -409,24 +457,10 @@ def create_app():
         )
 
         for allocation in allocations:
-            bucket = (allocation.bucket or "").strip()
-            name = (allocation.name or "").strip()
-
-            if bucket:
-                bucket_options.add(bucket)
-
-            if name:
-                name_options.add(name)
-
-            if bucket and name:
-                pair = {
-                    "bucket": bucket,
-                    "name": name,
-                    "label": f"{bucket} / {name}",
-                }
-
-                if pair not in bucket_name_pairs:
-                    bucket_name_pairs.append(pair)
+            add_bucket_name_pair(
+                allocation.bucket,
+                allocation.name,
+            )
 
         # ----------------------------------------------------------
         # Pull custom bucket options.
@@ -446,6 +480,9 @@ def create_app():
             if label:
                 bucket_options.add(label)
 
+                if label not in names_by_bucket:
+                    names_by_bucket[label] = set()
+
         # ----------------------------------------------------------
         # Pull custom name options.
         # ----------------------------------------------------------
@@ -459,24 +496,17 @@ def create_app():
         )
 
         for option in custom_names:
-            bucket_label = (option.bucket_label or "").strip()
-            name = (option.name or "").strip()
+            add_bucket_name_pair(
+                option.bucket_label,
+                option.name,
+            )
 
-            if bucket_label:
-                bucket_options.add(bucket_label)
+        # Convert sets to sorted lists so the template/JavaScript
+        # can use the data cleanly.
+        names_by_bucket_for_template = {}
 
-            if name:
-                name_options.add(name)
-
-            if bucket_label and name:
-                pair = {
-                    "bucket": bucket_label,
-                    "name": name,
-                    "label": f"{bucket_label} / {name}",
-                }
-
-                if pair not in bucket_name_pairs:
-                    bucket_name_pairs.append(pair)
+        for bucket, names in names_by_bucket.items():
+            names_by_bucket_for_template[bucket] = sorted(names)
 
         return {
             "bucket_options": sorted(bucket_options),
@@ -485,6 +515,7 @@ def create_app():
                 bucket_name_pairs,
                 key=lambda item: item["label"].lower(),
             ),
+            "names_by_bucket": names_by_bucket_for_template,
         }
 
     # ==================================================================
@@ -1393,6 +1424,7 @@ def create_app():
             goal_bucket_options=goal_form_options["bucket_options"],
             goal_name_options=goal_form_options["name_options"],
             goal_bucket_name_pairs=goal_form_options["bucket_name_pairs"],
+            goal_names_by_bucket=goal_form_options["names_by_bucket"],
         )
     
 
@@ -1522,6 +1554,7 @@ def create_app():
             goal_bucket_options=goal_form_options["bucket_options"],
             goal_name_options=goal_form_options["name_options"],
             goal_bucket_name_pairs=goal_form_options["bucket_name_pairs"],
+            goal_names_by_bucket=goal_form_options["names_by_bucket"],
         )
 
     # ==================================================================
