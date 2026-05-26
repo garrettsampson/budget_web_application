@@ -153,17 +153,40 @@
 </div>
 
 <!-- CREATE GOAL FORM -->
-<div class="shadow rounded-lg p-6 mb-6"
+<div class="shadow rounded-lg mb-6"
      style="background-color: var(--color-card-bg); border: 1px solid var(--color-border);">
 
-  <h3 class="text-xl font-semibold mb-2" style="color: var(--color-text);">
-    Create a New Goal
-  </h3>
+  <button
+    type="button"
+    id="toggleCreateGoalForm"
+    class="w-full flex items-center justify-between gap-4 p-6 text-left"
+    style="color: var(--color-text);"
+  >
+    <div>
+      <h3 class="text-xl font-semibold" style="color: var(--color-text);">
+        Create a New Goal
+      </h3>
 
-  <p class="text-sm mb-4" style="color: var(--color-text-secondary);">
-    The bucket and name should match a savings allocation you already use.
-    Existing buckets and names will appear as suggestions, but you can still type a new one.
-  </p>
+      <p class="text-sm mt-1" style="color: var(--color-text-secondary);">
+        Add a new savings goal and connect it to your existing savings buckets.
+      </p>
+    </div>
+
+    <span
+      id="createGoalToggleIcon"
+      class="text-2xl font-bold"
+      style="color: var(--color-primary);"
+    >
+      +
+    </span>
+  </button>
+
+  <div id="createGoalFormPanel" class="hidden px-6 pb-6">
+
+    <p class="text-sm mb-4" style="color: var(--color-text-secondary);">
+      The bucket and name should match a savings allocation you already use.
+      Existing buckets and names will appear as suggestions, but you can still type a new one.
+    </p>
 
   {% if goal_bucket_name_pairs %}
     <div class="rounded-lg p-4 mb-4"
@@ -366,8 +389,12 @@
       </button>
     </div>
 
-  </form>
+    </form>
+
+  </div>
 </div>
+
+<!-- ACTIVE GOALS -->
 
 <!-- ACTIVE GOALS -->
 <div class="shadow rounded-lg p-6"
@@ -752,6 +779,18 @@
     const bucketInput = document.getElementById("goalBucketInput");
     const nameInput = document.getElementById("goalNameInput");
     const nameDatalist = document.getElementById("goal-name-options");
+    const toggleCreateGoalForm = document.getElementById("toggleCreateGoalForm");
+    const createGoalFormPanel = document.getElementById("createGoalFormPanel");
+    const createGoalToggleIcon = document.getElementById("createGoalToggleIcon");
+
+    if (toggleCreateGoalForm && createGoalFormPanel && createGoalToggleIcon) {
+      toggleCreateGoalForm.addEventListener("click", () => {
+        createGoalFormPanel.classList.toggle("hidden");
+
+        const isHidden = createGoalFormPanel.classList.contains("hidden");
+        createGoalToggleIcon.textContent = isHidden ? "+" : "−";
+      });
+    }
 
     const allNameOptions = {{ goal_name_options | tojson }};
     const namesByBucket = {{ goal_names_by_bucket | tojson }};
