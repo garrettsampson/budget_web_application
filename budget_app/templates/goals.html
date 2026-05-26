@@ -14,6 +14,145 @@
   </div>
 </div>
 
+
+<!-- GOAL SUMMARY CARDS -->
+<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+
+  <div class="shadow rounded-lg p-5"
+       style="background-color: var(--color-card-bg); border: 1px solid var(--color-border);">
+    <div class="text-sm" style="color: var(--color-text-secondary);">
+      Active Goals
+    </div>
+    <div class="text-3xl font-bold" style="color: var(--color-text);">
+      {{ goal_summary.active_goal_count }}
+    </div>
+    <div class="text-sm mt-1" style="color: var(--color-text-secondary);">
+      {{ goal_summary.in_progress_goal_count }} in progress,
+      {{ goal_summary.completed_goal_count }} completed
+    </div>
+  </div>
+
+  <div class="shadow rounded-lg p-5"
+       style="background-color: var(--color-card-bg); border: 1px solid var(--color-border);">
+    <div class="text-sm" style="color: var(--color-text-secondary);">
+      Total Goal Targets
+    </div>
+    <div class="text-3xl font-bold" style="color: var(--color-text);">
+      ${{ "%.2f"|format(goal_summary.total_goal_target) }}
+    </div>
+  </div>
+
+  <div class="shadow rounded-lg p-5"
+       style="background-color: var(--color-card-bg); border: 1px solid var(--color-border);">
+    <div class="text-sm" style="color: var(--color-text-secondary);">
+      Saved Toward Goals
+    </div>
+    <div class="text-3xl font-bold" style="color: var(--color-success);">
+      ${{ "%.2f"|format(goal_summary.total_saved_toward_goals) }}
+    </div>
+    <div class="text-sm mt-1" style="color: var(--color-text-secondary);">
+      {{ "%.1f"|format(goal_summary.overall_goal_percent) }}% overall
+    </div>
+  </div>
+
+  <div class="shadow rounded-lg p-5"
+       style="background-color: var(--color-card-bg); border: 1px solid var(--color-border);">
+    <div class="text-sm" style="color: var(--color-text-secondary);">
+      Remaining
+    </div>
+    <div class="text-3xl font-bold" style="color: var(--color-text);">
+      ${{ "%.2f"|format(goal_summary.total_remaining_for_goals) }}
+    </div>
+  </div>
+
+</div>
+
+<!-- CLOSEST GOAL HIGHLIGHT -->
+<div class="shadow rounded-lg p-6 mb-6"
+     style="background-color: var(--color-card-bg); border: 1px solid var(--color-border);">
+
+  <h3 class="text-xl font-semibold mb-2" style="color: var(--color-text);">
+    Closest Goal
+  </h3>
+
+  {% if goal_summary.closest_goal_card %}
+    {% set closest_goal = goal_summary.closest_goal_card.goal %}
+    {% set closest_progress = goal_summary.closest_goal_card.progress %}
+
+    <div class="rounded-lg p-4"
+         style="border: 1px solid var(--color-border); background-color: var(--color-bg);">
+
+      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <div class="flex flex-wrap items-center gap-2">
+            <h4 class="text-lg font-bold" style="color: var(--color-text);">
+              {{ closest_goal.title }}
+            </h4>
+
+            {% if closest_progress.status == "completed" %}
+              <span
+                class="text-xs rounded-full px-3 py-1 font-semibold"
+                style="background-color: var(--color-success); color: white;"
+              >
+                Completed
+              </span>
+            {% else %}
+              <span
+                class="text-xs rounded-full px-3 py-1 font-semibold"
+                style="background-color: var(--color-primary); color: white;"
+              >
+                Closest
+              </span>
+            {% endif %}
+          </div>
+
+          <p class="text-sm mt-1" style="color: var(--color-text-secondary);">
+            {{ closest_goal.bucket }} / {{ closest_goal.name }}
+          </p>
+
+          {% if closest_progress.status == "completed" %}
+            <p class="text-sm mt-2 font-semibold" style="color: var(--color-success);">
+              This goal has been completed. Great job.
+            </p>
+          {% elif closest_progress.estimated_completion_label %}
+            <p class="text-sm mt-2" style="color: var(--color-text-secondary);">
+              Estimated completion:
+              <span class="font-semibold" style="color: var(--color-text);">
+                {{ closest_progress.estimated_completion_label }}
+              </span>
+            </p>
+          {% else %}
+            <p class="text-sm mt-2" style="color: var(--color-text-secondary);">
+              Keep contributing to build a better estimate.
+            </p>
+          {% endif %}
+        </div>
+
+        <div class="text-left sm:text-right">
+          <div class="text-sm" style="color: var(--color-text-secondary);">
+            Progress
+          </div>
+
+          <div class="text-3xl font-bold" style="color: var(--color-text);">
+            {{ "%.1f"|format(closest_progress.percent_complete) }}%
+          </div>
+
+          <div class="text-sm mt-1" style="color: var(--color-text-secondary);">
+            ${{ "%.2f"|format(closest_progress.current_amount) }}
+            /
+            ${{ "%.2f"|format(closest_goal.target_amount) }}
+          </div>
+        </div>
+      </div>
+    </div>
+  {% else %}
+    <p style="color: var(--color-text-secondary);">
+      No closest goal yet. Create a goal and add matching savings allocations to start seeing progress.
+    </p>
+  {% endif %}
+
+</div>
+
 <!-- CREATE GOAL FORM -->
 <div class="shadow rounded-lg p-6 mb-6"
      style="background-color: var(--color-card-bg); border: 1px solid var(--color-border);">
@@ -346,29 +485,7 @@
             </div>
           </div>
 
-          <!-- PROGRESS BAR -->
-          <div class="mb-3">
-            <div class="flex justify-between text-sm mb-1">
-              <span style="color: var(--color-text-secondary);">
-                Progress
-              </span>
-
-              <span class="font-semibold" style="color: var(--color-text);">
-                {{ "%.1f"|format(progress.percent_complete) }}%
-              </span>
-            </div>
-
-            <div class="w-full rounded-full overflow-hidden"
-                 style="height: 14px; background-color: var(--color-border);">
-              <div
-                class="h-full rounded-full"
-                style="
-                  width: {{ progress.percent_complete }}%;
-                  background-color: var(--color-success);
-                "
-              ></div>
-            </div>
-          </div>
+          
 
           <!-- GOAL NUMBERS -->
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">

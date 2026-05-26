@@ -1469,11 +1469,91 @@ def create_app():
                 }
             )
 
+        # --------------------------------------------------------------
+        # Goal summary stats for the top of the Goals page.
+        # --------------------------------------------------------------
+        active_goal_count = len(goal_cards)
+
+        completed_goal_count = sum(
+            1 for item in goal_cards
+            if item["progress"]["status"] == "completed"
+        )
+
+        in_progress_goal_count = sum(
+            1 for item in goal_cards
+            if item["progress"]["status"] == "in_progress"
+        )
+
+        not_started_goal_count = sum(
+            1 for item in goal_cards
+            if item["progress"]["status"] == "not_started"
+        )
+
+        total_goal_target = sum(
+            item["goal"].target_amount or 0.0
+            for item in goal_cards
+        )
+
+        total_saved_toward_goals = sum(
+            item["progress"]["current_amount"] or 0.0
+            for item in goal_cards
+        )
+
+        total_remaining_for_goals = sum(
+            item["progress"]["remaining_amount"] or 0.0
+            for item in goal_cards
+        )
+
+        if total_goal_target > 0:
+            overall_goal_percent = (
+                total_saved_toward_goals / total_goal_target
+            ) * 100
+        else:
+            overall_goal_percent = 0.0
+
+        if overall_goal_percent > 100:
+            overall_goal_percent = 100.0
+
+        closest_goal_card = None
+
+        goals_with_estimates = [
+            item for item in goal_cards
+            if item["progress"]["estimated_months_remaining"] is not None
+            and item["progress"]["status"] != "completed"
+        ]
+
+        if goals_with_estimates:
+            closest_goal_card = min(
+                goals_with_estimates,
+                key=lambda item: item["progress"]["estimated_months_remaining"],
+            )
+        elif goal_cards:
+            completed_goals = [
+                item for item in goal_cards
+                if item["progress"]["status"] == "completed"
+            ]
+
+            if completed_goals:
+                closest_goal_card = completed_goals[0]
+
+        goal_summary = {
+            "active_goal_count": active_goal_count,
+            "completed_goal_count": completed_goal_count,
+            "in_progress_goal_count": in_progress_goal_count,
+            "not_started_goal_count": not_started_goal_count,
+            "total_goal_target": total_goal_target,
+            "total_saved_toward_goals": total_saved_toward_goals,
+            "total_remaining_for_goals": total_remaining_for_goals,
+            "overall_goal_percent": overall_goal_percent,
+            "closest_goal_card": closest_goal_card,
+        }
+
         goal_form_options = get_goal_form_options(user)
 
         return render_template(
             "goals.html",
             goal_cards=goal_cards,
+            goal_summary=goal_summary,
             current_year=today.year,
             current_month=today.month,
             goal_bucket_options=goal_form_options["bucket_options"],
