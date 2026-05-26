@@ -1469,7 +1469,7 @@ def create_app():
                 }
             )
 
-            active_goal_cards = [
+        active_goal_cards = [
             item for item in goal_cards
             if item["progress"]["status"] != "completed"
         ]
