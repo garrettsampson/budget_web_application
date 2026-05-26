@@ -17,18 +17,26 @@
 <!-- GOAL SUMMARY CARDS -->
 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
 
-  <div class="shadow rounded-lg p-5"
+    <div class="shadow rounded-lg p-5"
        style="background-color: var(--color-card-bg); border: 1px solid var(--color-border);">
     <div class="text-sm" style="color: var(--color-text-secondary);">
       Active Goals
     </div>
+
     <div class="text-3xl font-bold" style="color: var(--color-text);">
       {{ goal_summary.active_goal_count }}
     </div>
+
     <div class="text-sm mt-1" style="color: var(--color-text-secondary);">
       {{ goal_summary.in_progress_goal_count }} in progress,
-      {{ goal_summary.completed_goal_count }} completed
+      {{ goal_summary.not_started_goal_count }} not started
     </div>
+
+    {% if goal_summary.completed_goal_count > 0 %}
+      <div class="text-xs mt-2 font-semibold" style="color: var(--color-success);">
+        {{ goal_summary.completed_goal_count }} completed goal{% if goal_summary.completed_goal_count != 1 %}s{% endif %}
+      </div>
+    {% endif %}
   </div>
 
   <div class="shadow rounded-lg p-5"
@@ -626,13 +634,26 @@
 <div class="shadow rounded-lg p-6 mt-6"
      style="background-color: var(--color-card-bg); border: 1px solid var(--color-border);">
 
-  <h3 class="text-xl font-semibold mb-2" style="color: var(--color-text);">
-    Completed Goals
-  </h3>
+  <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
+    <div>
+      <h3 class="text-xl font-semibold" style="color: var(--color-text);">
+        Completed Goals
+      </h3>
 
-  <p class="text-sm mb-4" style="color: var(--color-text-secondary);">
-    Goals you have already reached. Nice work.
-  </p>
+      <p class="text-sm mt-1" style="color: var(--color-text-secondary);">
+        Goals you have already reached. Keep them here as a reminder of your progress.
+      </p>
+    </div>
+
+    {% if completed_goal_cards %}
+      <div
+        class="rounded-full px-4 py-2 text-sm font-semibold"
+        style="background-color: var(--color-success); color: white;"
+      >
+        {{ completed_goal_cards|length }} completed
+      </div>
+    {% endif %}
+  </div>
 
   {% if completed_goal_cards %}
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
@@ -755,9 +776,19 @@
 
               </div>
 
-              <p class="text-sm mt-3 font-semibold" style="color: var(--color-success);">
-                Goal reached. Great job.
-              </p>
+                <div
+                class="rounded-lg p-3 mt-3"
+                style="border: 1px solid var(--color-border); background-color: var(--color-card-bg);"
+              >
+                <p class="text-sm font-semibold" style="color: var(--color-success);">
+                  Goal reached. Great job.
+                </p>
+
+                <p class="text-xs mt-1" style="color: var(--color-text-secondary);">
+                  You reached this goal by building consistent savings toward
+                  {{ goal.bucket }} / {{ goal.name }}.
+                </p>
+              </div>
             </div>
 
           </div>
@@ -767,9 +798,16 @@
 
     </div>
   {% else %}
-    <p style="color: var(--color-text-secondary);">
-      Completed goals will appear here once you reach them.
-    </p>
+    <div class="rounded-lg p-4"
+         style="border: 1px solid var(--color-border); background-color: var(--color-bg);">
+      <p class="font-semibold" style="color: var(--color-text);">
+        No completed goals yet.
+      </p>
+
+      <p class="text-sm mt-1" style="color: var(--color-text-secondary);">
+        Once one of your goals reaches 100%, it will move here so you can see what you have accomplished.
+      </p>
+    </div>
   {% endif %}
 
 </div>

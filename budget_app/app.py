@@ -1481,21 +1481,22 @@ def create_app():
 
         # --------------------------------------------------------------
         # Goal summary stats for the top of the Goals page.
+        #
+        # IMPORTANT:
+        # "Active Goals" means goals that are NOT completed.
+        # Completed goals are still shown, but they are not counted
+        # as active goals.
         # --------------------------------------------------------------
-        active_goal_count = len(goal_cards)
-
-        completed_goal_count = sum(
-            1 for item in goal_cards
-            if item["progress"]["status"] == "completed"
-        )
+        active_goal_count = len(active_goal_cards)
+        completed_goal_count = len(completed_goal_cards)
 
         in_progress_goal_count = sum(
-            1 for item in goal_cards
+            1 for item in active_goal_cards
             if item["progress"]["status"] == "in_progress"
         )
 
         not_started_goal_count = sum(
-            1 for item in goal_cards
+            1 for item in active_goal_cards
             if item["progress"]["status"] == "not_started"
         )
 
