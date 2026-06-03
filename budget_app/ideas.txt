@@ -300,6 +300,12 @@ Phase 5 Goals Polish:
 - Add better visual polish, badges, completion messages, and progress indicators.
 
 
+New ideas:
+- need to update the phone display and how it looks on the phone
+- can Possibly make it where any changes you make for expenses? It somehow remembers the day you did it that way in more info you can see when you spend certain stuff or maybe you can add a date of when you spent that.
+- maybe add a selection to see if it was a work related expense or non-work related expense
+- 
+
 Rileys ideas:
  - Notes section
   - notes section for keeping different accounts seperaate and remembering their purpose
