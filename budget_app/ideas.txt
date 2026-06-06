@@ -304,7 +304,12 @@ New ideas:
 - need to update the phone display and how it looks on the phone
 - can Possibly make it where any changes you make for expenses? It somehow remembers the day you did it that way in more info you can see when you spend certain stuff or maybe you can add a date of when you spent that.
 - maybe add a selection to see if it was a work related expense or non-work related expense
-- 
+- if multiple goals are in the same gategory they need to be given priority or something because right now the money is duplicated instead of shared between them. So if I invest 500 it will say I gave 500 to each one instead of 250 to both or 500 to just one. 
+- need to fix savings allocation so negative numbers wont work, you can put in a percent but if youre negative it wont actually put any money it'd put $0
+- if final leftover is negative it needs to be red. On the home page, goals, yearly, every page. 
+- need to update settings icon. Need to make expenses in the red if youre in the negative
+- in the future can possibly add different accounts so you can see the money spent/left on those accounts. 
+- need to make it where the X next to bucket or name for a custom one has a pop up saying "this will delete the custom name/bucket" because even though I made it I thought I was just removing the thing I typed, not the entire bracket so it messed up my entire account. 
 
 Rileys ideas:
  - Notes section
