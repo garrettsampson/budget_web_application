@@ -310,6 +310,7 @@ New ideas:
 - need to update settings icon. Need to make expenses in the red if youre in the negative
 - in the future can possibly add different accounts so you can see the money spent/left on those accounts. 
 - need to make it where the X next to bucket or name for a custom one has a pop up saying "this will delete the custom name/bucket" because even though I made it I thought I was just removing the thing I typed, not the entire bracket so it messed up my entire account. 
+- add dates for when u entered an item in the bar on the expense tab. and it goes off of the day you added it. then you can click on it to edit it if needed 
 
 Rileys ideas:
  - Notes section
