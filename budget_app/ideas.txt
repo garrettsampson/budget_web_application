@@ -313,7 +313,7 @@ New ideas:
 - add dates for when u entered an item in the bar on the expense tab. and it goes off of the day you added it. then you can click on it to edit it if needed 
 - make it to where on the yearly goals you could click on a month and get the months breakdown which has all the info like the years. 
 - add charts, etc. to the home page instead of just numbers. 
-
+- if your pay period was for june but you got paid in july your hours, etc should be calculated in june, not july. 
 Rileys ideas:
  - Notes section
   - notes section for keeping different accounts seperaate and remembering their purpose
