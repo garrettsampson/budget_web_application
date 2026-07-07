@@ -314,6 +314,9 @@ New ideas:
 - make it to where on the yearly goals you could click on a month and get the months breakdown which has all the info like the years. 
 - add charts, etc. to the home page instead of just numbers. 
 - if your pay period was for june but you got paid in july your hours, etc should be calculated in june, not july. 
+- add an update banner when you log in, so if i make an update I can write what i changed in there so when a user logs in they get flagged snd can see that update changes. then ask if they want to see it again or not until the next update. 
+
+
 Rileys ideas:
  - Notes section
   - notes section for keeping different accounts seperaate and remembering their purpose
